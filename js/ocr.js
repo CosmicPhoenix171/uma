@@ -1,57 +1,33 @@
 // OCR Module - Handles image processing with Tesseract.js
 
-let ocrWorker = null;
-
 /**
- * Initialize Tesseract worker
- */
-async function initOCR() {
-    if (!ocrWorker) {
-        try {
-            if (typeof Tesseract === 'undefined') {
-                throw new Error('Tesseract.js library not loaded');
-            }
-            
-            console.log('Initializing OCR worker...');
-            ocrWorker = await Tesseract.createWorker({
-                logger: m => console.log('OCR:', m)
-            });
-            await ocrWorker.loadLanguage('eng');
-            await ocrWorker.initialize('eng');
-            console.log('OCR worker initialized successfully');
-        } catch (error) {
-            console.error('Error initializing OCR worker:', error);
-            throw new Error('Failed to initialize OCR: ' + error.message);
-        }
-    }
-}
-
-/**
- * Process image with OCR
+ * Process image with OCR - Simplified approach using Tesseract.recognize
  */
 async function processImageWithOCR(file) {
     try {
         // Show loading indicator
         showLoading();
 
-        // Initialize worker if not already done
-        await initOCR();
-
-        if (!ocrWorker) {
-            throw new Error('OCR worker failed to initialize');
+        if (typeof Tesseract === 'undefined') {
+            throw new Error('Tesseract.js library not loaded');
         }
 
         console.log('Processing image with OCR...');
         
-        // Process the image
-        const result = await ocrWorker.recognize(file);
-        const text = result.data.text;
+        // Use Tesseract.recognize directly (simpler API)
+        const result = await Tesseract.recognize(
+            file,
+            'eng',
+            {
+                logger: m => console.log('OCR Progress:', m)
+            }
+        );
         
+        const text = result.data.text;
         console.log('OCR text extracted:', text);
         
         // Parse the OCR text to extract placements
         const placements = parseOCRText(text);
-        
         console.log('Parsed placements:', placements);
         
         hideLoading();
@@ -149,15 +125,5 @@ async function handleImageUpload(file) {
         console.error('Image upload error:', error);
         showToast('Error processing image: ' + (error.message || 'Unknown error'), 'error');
         return null;
-    }
-}
-
-/**
- * Cleanup OCR worker
- */
-async function terminateOCR() {
-    if (ocrWorker) {
-        await ocrWorker.terminate();
-        ocrWorker = null;
     }
 }

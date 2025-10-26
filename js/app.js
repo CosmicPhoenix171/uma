@@ -4,9 +4,6 @@
  * Initialize application
  */
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize OCR
-    initOCR();
-    
     // Load and display existing data
     updateSummaryTable();
     
@@ -205,10 +202,3 @@ function handleOCRRaceSubmit() {
         showToast('Error: ' + error.message, 'error');
     }
 }
-
-/**
- * Cleanup on page unload
- */
-window.addEventListener('beforeunload', () => {
-    terminateOCR();
-});
