@@ -47,42 +47,45 @@ async function processImageWithOCR(file) {
 
 /**
  * Parse OCR text to extract placement numbers
+ * Enhanced for Uma Musume Team Trials result screens
  * Looks for patterns like "1st", "2nd", "3rd", "4th", etc.
- * or just numbers 1-18
  */
 function parseOCRText(text) {
     const placements = [];
     
-    // Clean up text
-    const cleanText = text.replace(/[^\w\s]/g, ' ');
+    // Enhanced cleaning - preserve important characters
+    const cleanText = text.replace(/[^\w\s]/g, ' ').toLowerCase();
     
-    // Look for placement patterns
-    const patterns = [
-        /(\d+)(?:st|nd|rd|th)/gi,  // Matches 1st, 2nd, 3rd, 4th, etc.
-        /\b(\d+)\b/g                // Matches standalone numbers
-    ];
+    // Look for ordinal patterns (1st, 2nd, 3rd, etc.)
+    const ordinalPattern = /(\d+)(?:st|nd|rd|th)/gi;
+    const matches = [...text.matchAll(ordinalPattern)];
     
+    // Extract numbers from ordinal matches
     const foundNumbers = new Set();
+    for (const match of matches) {
+        const num = parseInt(match[1]);
+        if (num >= 1 && num <= 18 && !foundNumbers.has(num)) {
+            foundNumbers.add(num);
+            placements.push(num);
+        }
+    }
     
-    for (const pattern of patterns) {
-        const matches = cleanText.matchAll(pattern);
-        for (const match of matches) {
+    // If we didn't find enough, try standalone numbers
+    if (placements.length < 15) {
+        const numberPattern = /\b(\d{1,2})\b/g;
+        const numberMatches = [...cleanText.matchAll(numberPattern)];
+        
+        for (const match of numberMatches) {
             const num = parseInt(match[1]);
-            if (num >= 1 && num <= 18 && !foundNumbers.has(num)) {
+            if (num >= 1 && num <= 18 && !foundNumbers.has(num) && placements.length < 15) {
                 foundNumbers.add(num);
                 placements.push(num);
             }
         }
     }
     
-    // If we found exactly 15 numbers, return them
-    if (placements.length >= 15) {
-        return placements.slice(0, 15);
-    }
-    
-    // Otherwise, return what we found and fill the rest with default values
+    // Fill remaining slots with sequential numbers that haven't been used
     while (placements.length < 15) {
-        // Find a number between 1-18 that hasn't been used
         for (let i = 1; i <= 18; i++) {
             if (!foundNumbers.has(i)) {
                 placements.push(i);
@@ -90,13 +93,18 @@ function parseOCRText(text) {
                 break;
             }
         }
-        // If all numbers 1-18 are used, just add a default
-        if (placements.length < 15) {
-            placements.push(1);
+        // Safety break if we run out of numbers
+        if (placements.length < 15 && foundNumbers.size >= 18) {
+            // Just fill with reasonable defaults
+            const remaining = 15 - placements.length;
+            for (let j = 0; j < remaining; j++) {
+                placements.push(Math.min(18, j + 1));
+            }
+            break;
         }
     }
     
-    return placements;
+    return placements.slice(0, 15);
 }
 
 /**

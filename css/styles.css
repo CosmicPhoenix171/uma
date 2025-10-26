@@ -274,6 +274,19 @@ header h1 {
     color: var(--primary-color);
 }
 
+.help-text {
+    background: rgba(33, 150, 243, 0.1);
+    border-left: 4px solid var(--secondary-color);
+    padding: 12px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    font-size: 0.95rem;
+}
+
+[data-theme="dark"] .help-text {
+    background: rgba(33, 150, 243, 0.2);
+}
+
 .form-grid {
     margin-bottom: 20px;
 }
