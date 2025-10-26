@@ -12,12 +12,47 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Set up event listeners
     setupEventListeners();
+    
+    // Initialize theme
+    initTheme();
 });
+
+/**
+ * Initialize theme from localStorage
+ */
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeIcon(savedTheme);
+}
+
+/**
+ * Toggle between light and dark mode
+ */
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme);
+}
+
+/**
+ * Update theme icon
+ */
+function updateThemeIcon(theme) {
+    const icon = document.getElementById('theme-icon');
+    icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+}
 
 /**
  * Set up all event listeners
  */
 function setupEventListeners() {
+    // Theme toggle button
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+    
     // Manual entry button
     document.getElementById('btn-manual').addEventListener('click', () => {
         showManualEntry();
