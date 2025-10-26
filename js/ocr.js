@@ -14,9 +14,12 @@ async function processImageWithOCR(file) {
 
         console.log('Processing image with OCR...');
         
-        // Process the full image once
+        // Preprocess the image for better OCR accuracy
+        const preprocessedImage = await preprocessImageForOCR(file);
+        
+        // Process the preprocessed image
         const result = await Tesseract.recognize(
-            file,
+            preprocessedImage,
             'eng',
             {
                 logger: m => {
@@ -42,6 +45,95 @@ async function processImageWithOCR(file) {
         console.error('OCR processing error:', error);
         throw new Error(error.message || 'Failed to process image');
     }
+}
+
+/**
+ * Preprocess image for better OCR accuracy
+ * Applies filters to enhance yellow/gold ranking text visibility
+ */
+async function preprocessImageForOCR(file) {
+    console.log('Preprocessing image for OCR...');
+    
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                canvas.width = img.width;
+                canvas.height = img.height;
+                
+                // Draw original image
+                ctx.drawImage(img, 0, 0);
+                
+                // Get image data
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+                
+                // Define the ranking area (45-75% of height where rankings appear)
+                const rankingAreaTop = Math.floor(canvas.height * 0.45);
+                const rankingAreaBottom = Math.floor(canvas.height * 0.75);
+                
+                console.log(`Preprocessing ranking area: y ${rankingAreaTop} to ${rankingAreaBottom}`);
+                
+                // Process each pixel
+                for (let y = 0; y < canvas.height; y++) {
+                    for (let x = 0; x < canvas.width; x++) {
+                        const index = (y * canvas.width + x) * 4;
+                        
+                        // Only process pixels in the ranking area
+                        if (y >= rankingAreaTop && y <= rankingAreaBottom) {
+                            const r = data[index];
+                            const g = data[index + 1];
+                            const b = data[index + 2];
+                            
+                            // Detect yellow/gold text (high R and G, low B)
+                            // Yellow rankings typically have R>180, G>150, B<100
+                            const isYellowText = r > 180 && g > 150 && b < 120 && 
+                                                 r > b + 80 && g > b + 50;
+                            
+                            if (isYellowText) {
+                                // Convert yellow text to black for better OCR
+                                data[index] = 0;       // R
+                                data[index + 1] = 0;   // G
+                                data[index + 2] = 0;   // B
+                            } else {
+                                // Convert everything else to white (background)
+                                data[index] = 255;     // R
+                                data[index + 1] = 255; // G
+                                data[index + 2] = 255; // B
+                            }
+                        }
+                    }
+                }
+                
+                // Put processed image data back
+                ctx.putImageData(imageData, 0, 0);
+                
+                // Apply sharpening to enhance text edges
+                ctx.filter = 'contrast(150%) brightness(110%)';
+                ctx.drawImage(canvas, 0, 0);
+                
+                console.log('Image preprocessing complete');
+                
+                // Convert canvas to blob
+                canvas.toBlob(blob => {
+                    if (blob) {
+                        resolve(blob);
+                    } else {
+                        reject(new Error('Failed to create blob from preprocessed image'));
+                    }
+                }, 'image/png');
+                
+            } catch (err) {
+                reject(err);
+            }
+        };
+        
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = URL.createObjectURL(file);
+    });
 }
 
 /**
