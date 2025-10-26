@@ -26,7 +26,68 @@ body {
     color: var(--text-color);
     line-height: 1.6;
     min-height: 100vh;
-    padding: 10px;
+    padding: 0;
+    margin: 0;
+}
+
+/* Hero Banner */
+.hero-banner {
+    position: relative;
+    width: 100%;
+    height: 400px;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.hero-background {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #87CEEB 0%, #4CA1FF 25%, #FF69B4 50%, #FFB6C1 75%, #87CEEB 100%);
+    background-size: 200% 200%;
+    animation: gradientShift 15s ease infinite;
+    /* Optional: If you have uma-hero.jpg image, uncomment below */
+    /* background-image: url('../assets/images/uma-hero.jpg'); */
+    /* background-size: cover; */
+    /* background-position: center; */
+}
+
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.hero-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+}
+
+.hero-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 50%, transparent 100%);
+    padding: 40px 20px 20px;
+    text-align: center;
+}
+
+.hero-title {
+    font-size: 2.5rem;
+    color: white;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    margin: 0 0 10px 0;
+    font-weight: 700;
+}
+
+.hero-subtitle {
+    font-size: 1.2rem;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    margin: 0;
 }
 
 .container {
@@ -36,6 +97,7 @@ body {
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     overflow: hidden;
+    margin-bottom: 20px;
 }
 
 /* Header Styles */

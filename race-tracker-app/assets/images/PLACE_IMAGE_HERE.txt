@@ -1,0 +1,6 @@
+Please place your Uma Musume hero image here!
+
+Required file name: uma-hero.jpg
+Recommended size: 1920x1080 or similar 16:9 aspect ratio
+
+The image should show the Uma Musume characters in a colorful, vibrant style.

@@ -1,12 +1,29 @@
 /* Mobile-specific styles */
 
 @media (max-width: 768px) {
+    .hero-banner {
+        height: 250px;
+    }
+
+    .hero-title {
+        font-size: 1.8rem;
+    }
+
+    .hero-subtitle {
+        font-size: 1rem;
+    }
+
+    .hero-overlay {
+        padding: 20px 15px 15px;
+    }
+
     body {
-        padding: 5px;
+        padding: 0;
     }
 
     .container {
-        border-radius: 8px;
+        border-radius: 0;
+        margin: 0;
     }
 
     header h1 {
@@ -77,6 +94,18 @@
 }
 
 @media (max-width: 480px) {
+    .hero-banner {
+        height: 200px;
+    }
+
+    .hero-title {
+        font-size: 1.4rem;
+    }
+
+    .hero-subtitle {
+        font-size: 0.9rem;
+    }
+
     header h1 {
         font-size: 1.2rem;
     }
