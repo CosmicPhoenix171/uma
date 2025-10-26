@@ -13,8 +13,20 @@ async function processImageWithOCR(file) {
         }
 
         console.log('Processing image with OCR (no preprocessing)...');
-        
-        // Process the raw image directly without preprocessing
+
+        // 1) Try focused region OCR first (best chance for rankings)
+        const img = await createImageFromFile(file);
+        const regionPlacements = await processFocusedRankRegions(img);
+        console.log('Region placements:', regionPlacements);
+
+        // If we got at least 5 confident results (not all 10), use them
+        const nonDefault = regionPlacements.filter(v => v !== 10).length;
+        if (nonDefault >= 5) {
+            hideLoading();
+            return regionPlacements;
+        }
+
+        // 2) Fallback: full-image OCR with spatial parsing
         const result = await Tesseract.recognize(
             file,
             'eng',
@@ -31,11 +43,11 @@ async function processImageWithOCR(file) {
                 }
             }
         );
-        
+
         const text = result.data.text;
         console.log('OCR text extracted:', text);
         console.log('OCR data:', result.data);
-        
+
         // Parse the OCR text to extract placements using word positions
         const placements = parseOCRWithPositions(result.data);
         console.log('Parsed placements:', placements);
@@ -47,6 +59,124 @@ async function processImageWithOCR(file) {
         console.error('OCR processing error:', error);
         throw new Error(error.message || 'Failed to process image');
     }
+}
+
+/**
+ * Crop and OCR the 15 ranking regions without color filtering
+ * - Crops to the 5x3 grid area where rankings appear
+ * - Upscales by 2x to help OCR
+ * - Uses psm 8 (single word) with ranking whitelist
+ */
+async function processFocusedRankRegions(img) {
+    console.log('Running focused region OCR...');
+    const width = img.width;
+    const height = img.height;
+
+    // Approx grid area (tuned from screenshots)
+    const gridTop = Math.floor(height * 0.48);   // start a bit below the middle
+    const gridBottom = Math.floor(height * 0.82); // end above bottom controls
+    const gridHeight = gridBottom - gridTop;
+
+    const cols = 5;
+    const rows = 3;
+    const regionW = Math.floor(width / cols);
+    const regionH = Math.floor(gridHeight / rows);
+
+    const placements = new Array(15).fill(10);
+
+    const baseCanvas = document.createElement('canvas');
+    const ctx = baseCanvas.getContext('2d');
+
+    const scale = 2; // upscale for better OCR
+    const workCanvas = document.createElement('canvas');
+    const wctx = workCanvas.getContext('2d');
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const index = r * cols + c;
+            const sx = c * regionW;
+            const sy = gridTop + r * regionH;
+            const sw = regionW;
+            const sh = regionH;
+
+            // Crop from source
+            baseCanvas.width = sw;
+            baseCanvas.height = sh;
+            ctx.clearRect(0, 0, sw, sh);
+            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+
+            // Slightly tighten to the lower-middle band of each region
+            const bandY = Math.floor(sh * 0.55);
+            const bandH = Math.floor(sh * 0.35);
+
+            // Upscale band
+            workCanvas.width = sw * scale;
+            workCanvas.height = bandH * scale;
+            wctx.imageSmoothingEnabled = true;
+            wctx.clearRect(0, 0, workCanvas.width, workCanvas.height);
+            wctx.drawImage(baseCanvas, 0, bandY, sw, bandH, 0, 0, workCanvas.width, workCanvas.height);
+
+            // Convert to blob
+            const blob = await new Promise((resolve, reject) => {
+                workCanvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to create region blob')), 'image/png');
+            });
+
+            try {
+                const result = await Tesseract.recognize(blob, 'eng', {
+                    psm: 8, // single word
+                    tessedit_char_whitelist: '0123456789stndrdthSTNDRDTH[]()!|',
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            // compact log
+                        }
+                    }
+                });
+
+                const raw = (result.data.text || '').trim();
+                const detected = detectRankingFromText(raw);
+                if (detected) {
+                    placements[index] = detected;
+                    console.log(`Region ${index + 1}: "${raw}" -> ${detected}`);
+                } else {
+                    console.log(`Region ${index + 1}: "${raw}" -> no rank`);
+                }
+            } catch (err) {
+                console.warn(`Region ${index + 1} OCR failed:`, err.message);
+            }
+        }
+    }
+
+    console.log('Focused region OCR placements:', placements);
+    return placements;
+}
+
+/**
+ * Detect ranking number from text using tolerant patterns
+ */
+function detectRankingFromText(text) {
+    if (!text) return null;
+    const t = text.replace(/\s+/g, '');
+
+    // Standard ordinals
+    let m = t.match(/^(\d{1,2})(st|nd|rd|th)$/i);
+    if (m) return clampRank(parseInt(m[1]));
+
+    // Digits with common misreads for suffix: ], ), !, |
+    m = t.match(/^(\d{1,2})[\]\)\|!]+$/);
+    if (m) return clampRank(parseInt(m[1]));
+
+    // Standalone number 1-18
+    m = t.match(/^(\d{1,2})$/);
+    if (m) return clampRank(parseInt(m[1]));
+
+    return null;
+}
+
+function clampRank(n) {
+    if (isNaN(n)) return null;
+    if (n < 1) return 1;
+    if (n > 18) return 18;
+    return n;
 }
 
 /**
