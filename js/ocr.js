@@ -1,7 +1,7 @@
 // OCR Module - Handles image processing with Tesseract.js
 
 /**
- * Process image with OCR - Enhanced approach with region focusing
+ * Process image with OCR - Simplified full-image approach with smart parsing
  */
 async function processImageWithOCR(file) {
     try {
@@ -14,12 +14,26 @@ async function processImageWithOCR(file) {
 
         console.log('Processing image with OCR...');
         
-        // First, create an image element to get dimensions
-        const img = await createImageFromFile(file);
-        console.log('Image dimensions:', img.width, 'x', img.height);
+        // Process the full image once
+        const result = await Tesseract.recognize(
+            file,
+            'eng',
+            {
+                logger: m => {
+                    if (m.status === 'recognizing text') {
+                        console.log('OCR Progress:', Math.round(m.progress * 100) + '%');
+                    }
+                }
+            }
+        );
         
-        // Try region-based OCR for better accuracy
-        const placements = await processImageRegions(file, img.width, img.height);
+        const text = result.data.text;
+        console.log('OCR text extracted:', text);
+        console.log('OCR data:', result.data);
+        
+        // Parse the OCR text to extract placements using word positions
+        const placements = parseOCRWithPositions(result.data);
+        console.log('Parsed placements:', placements);
         
         hideLoading();
         return placements;
@@ -43,15 +57,90 @@ function createImageFromFile(file) {
 }
 
 /**
+ * Parse OCR results using word positions to extract placements
+ * Uses spatial positioning to map rankings to the 5x3 character grid
+ */
+function parseOCRWithPositions(ocrData) {
+    console.log('Parsing OCR with position data...');
+    
+    const imageHeight = ocrData.height || 2412;
+    const imageWidth = ocrData.width || 1080;
+    
+    // Define the grid layout (5 columns x 3 rows)
+    const cols = 5;
+    const rows = 3;
+    const placements = new Array(15).fill(10);  // Default to mid-pack
+    
+    // Define the area where rankings appear (middle section of image)
+    const rankingAreaTop = imageHeight * 0.45;
+    const rankingAreaBottom = imageHeight * 0.75;
+    
+    // Collect all ordinal numbers with their positions
+    const rankings = [];
+    
+    // Search through all words for ordinal rankings
+    if (ocrData.words) {
+        for (const word of ocrData.words) {
+            const text = word.text.trim();
+            const bbox = word.bbox;
+            
+            // Check if this word contains an ordinal ranking
+            const ordinalMatch = text.match(/(\d+)\s*(?:st|nd|rd|th)/i);
+            if (ordinalMatch && bbox) {
+                const rankNum = parseInt(ordinalMatch[1]);
+                if (rankNum >= 1 && rankNum <= 18) {
+                    const centerX = (bbox.x0 + bbox.x1) / 2;
+                    const centerY = (bbox.y0 + bbox.y1) / 2;
+                    
+                    // Only consider rankings in the target area
+                    if (centerY >= rankingAreaTop && centerY <= rankingAreaBottom) {
+                        rankings.push({
+                            rank: rankNum,
+                            x: centerX,
+                            y: centerY,
+                            text: text
+                        });
+                        console.log('Found ranking:', text, 'at position', centerX, centerY);
+                    }
+                }
+            }
+        }
+    }
+    
+    console.log('Total rankings found:', rankings.length);
+    
+    // Map rankings to grid positions based on spatial location
+    if (rankings.length > 0) {
+        for (const ranking of rankings) {
+            // Determine which column (0-4) and row (0-2) this ranking belongs to
+            const col = Math.floor((ranking.x / imageWidth) * cols);
+            const normalizedY = (ranking.y - rankingAreaTop) / (rankingAreaBottom - rankingAreaTop);
+            const row = Math.floor(normalizedY * rows);
+            
+            // Calculate grid index (0-14)
+            const gridIndex = Math.max(0, Math.min(14, row * cols + col));
+            
+            placements[gridIndex] = ranking.rank;
+            console.log(`Mapped ${ranking.text} to grid position ${gridIndex} (row ${row}, col ${col})`);
+        }
+    }
+    
+    console.log('Final placements:', placements);
+    return placements;
+}
+
+/**
  * Process specific regions of the image for better OCR accuracy
  * Focuses on placement rankings (1st, 2nd, 3rd, etc.) which appear below each character
  */
-async function processImageRegions(file, width, height) {
+async function processImageRegions(img) {
+    const width = img.width;
+    const height = img.height;
+    
     console.log('Processing image regions for placement rankings...');
     console.log('Image size:', width, 'x', height);
     
-    // Create image element and canvas for cropping
-    const img = await createImageFromFile(file);
+    // Create canvas for cropping
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     
@@ -80,13 +169,32 @@ async function processImageRegions(file, width, height) {
             });
             
             try {
-                // Crop the image to this region
+                // Set canvas to the crop size
                 canvas.width = regionWidth;
                 canvas.height = regionH;
-                ctx.drawImage(img, regionLeft, regionY, regionWidth, regionH, 0, 0, regionWidth, regionH);
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw only the specific region of the source image
+                // drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+                ctx.drawImage(
+                    img,                    // source image
+                    regionLeft, regionY,    // source x, y (where to start cropping)
+                    regionWidth, regionH,   // source width, height (size of crop)
+                    0, 0,                   // destination x, y (where to place on canvas)
+                    regionWidth, regionH    // destination width, height (size on canvas)
+                );
                 
                 // Convert canvas to blob
-                const croppedBlob = await new Promise(resolve => canvas.toBlob(resolve));
+                const croppedBlob = await new Promise((resolve, reject) => {
+                    canvas.toBlob(blob => {
+                        if (blob) resolve(blob);
+                        else reject(new Error('Failed to create blob from canvas'));
+                    });
+                });
+                
+                console.log(`Region ${index + 1} blob size:`, croppedBlob.size, 'bytes');
                 
                 // Run OCR on the cropped image
                 const result = await Tesseract.recognize(
