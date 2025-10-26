@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Race Tracker App</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/mobile.css">
+    <script src="lib/tesseract.min.js"></script>
+    <script src="js/storage.js" defer></script>
+    <script src="js/ocr.js" defer></script>
+    <script src="js/export.js" defer></script>
+    <script src="js/ui.js" defer></script>
+    <script src="js/app.js" defer></script>
+</head>
+<body>
+    <header>
+        <h1>Race Results Tracker</h1>
+    </header>
+    <main>
+        <section id="entry-panel">
+            <h2>Upload Race Results</h2>
+            <input type="file" id="image-upload" accept="image/*">
+            <button id="process-button">Process Image</button>
+        </section>
+        <section id="results">
+            <h2>Race Results</h2>
+            <ul id="results-list"></ul>
+        </section>
+        <button id="export-button">Export Results</button>
+    </main>
+    <footer>
+        <p>&copy; 2023 Race Tracker App</p>
+    </footer>
+</body>
+</html>
