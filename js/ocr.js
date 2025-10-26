@@ -88,35 +88,21 @@ function parseOCRText(text) {
     // Extract just the placement numbers in order
     const orderedPlacements = positionsWithLines.map(p => p.placement);
     
+    console.log('Positions with lines:', positionsWithLines);
     console.log('Ordered placements found:', orderedPlacements);
     
-    // If we found at least some placements, use them
-    if (orderedPlacements.length > 0) {
-        // Take up to 15 placements
-        for (let i = 0; i < Math.min(15, orderedPlacements.length); i++) {
-            placements.push(orderedPlacements[i]);
-        }
+    // Use the ordered placements directly - these ARE the race results!
+    // Girl 1 finished in orderedPlacements[0] place
+    // Girl 2 finished in orderedPlacements[1] place, etc.
+    const finalPlacements = orderedPlacements.slice(0, 15);
+    
+    // If we didn't find enough placements, fill with reasonable middle values
+    while (finalPlacements.length < 15) {
+        finalPlacements.push(10); // Default to mid-pack placement
     }
     
-    // Fill remaining slots with reasonable defaults
-    const usedNumbers = new Set(placements);
-    while (placements.length < 15) {
-        // Find the next unused number between 1-18
-        for (let i = 1; i <= 18; i++) {
-            if (!usedNumbers.has(i)) {
-                placements.push(i);
-                usedNumbers.add(i);
-                break;
-            }
-        }
-        // Safety: if all 1-18 are used, just use sequential numbers
-        if (usedNumbers.size >= 18 && placements.length < 15) {
-            placements.push(placements.length + 1);
-        }
-    }
-    
-    console.log('Final placements array (15 girls):', placements);
-    return placements.slice(0, 15);
+    console.log('Final placements array (15 girls):', finalPlacements);
+    return finalPlacements;
 }
 
 /**
