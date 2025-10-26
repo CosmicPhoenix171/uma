@@ -62,6 +62,7 @@ function createImageFromFile(file) {
  */
 function parseOCRWithPositions(ocrData) {
     console.log('Parsing OCR with position data...');
+    console.log('Available OCR data properties:', Object.keys(ocrData));
     
     const imageHeight = ocrData.height || 2412;
     const imageWidth = ocrData.width || 1080;
@@ -78,30 +79,67 @@ function parseOCRWithPositions(ocrData) {
     // Collect all ordinal numbers with their positions
     const rankings = [];
     
-    // Search through all words for ordinal rankings
-    if (ocrData.words) {
-        for (const word of ocrData.words) {
-            const text = word.text.trim();
-            const bbox = word.bbox;
-            
-            // Check if this word contains an ordinal ranking
-            const ordinalMatch = text.match(/(\d+)\s*(?:st|nd|rd|th)/i);
-            if (ordinalMatch && bbox) {
-                const rankNum = parseInt(ordinalMatch[1]);
-                if (rankNum >= 1 && rankNum <= 18) {
-                    const centerX = (bbox.x0 + bbox.x1) / 2;
-                    const centerY = (bbox.y0 + bbox.y1) / 2;
-                    
-                    // Only consider rankings in the target area
-                    if (centerY >= rankingAreaTop && centerY <= rankingAreaBottom) {
-                        rankings.push({
-                            rank: rankNum,
-                            x: centerX,
-                            y: centerY,
-                            text: text
-                        });
-                        console.log('Found ranking:', text, 'at position', centerX, centerY);
+    // Try to get word-level data from different possible locations
+    let words = null;
+    
+    if (ocrData.words && ocrData.words.length > 0) {
+        words = ocrData.words;
+        console.log('Using ocrData.words:', words.length, 'words found');
+    } else if (ocrData.lines) {
+        // Try extracting words from lines
+        console.log('Using ocrData.lines');
+        for (const line of ocrData.lines) {
+            if (line.words) {
+                if (!words) words = [];
+                words.push(...line.words);
+            }
+        }
+    } else if (ocrData.paragraphs) {
+        // Try extracting from paragraphs
+        console.log('Using ocrData.paragraphs');
+        for (const para of ocrData.paragraphs) {
+            if (para.lines) {
+                for (const line of para.lines) {
+                    if (line.words) {
+                        if (!words) words = [];
+                        words.push(...line.words);
                     }
+                }
+            }
+        }
+    }
+    
+    if (!words || words.length === 0) {
+        console.warn('No word-level data found in OCR results');
+        console.log('OCR data structure:', ocrData);
+        // Fallback to basic text parsing
+        return parseOCRTextFallback(ocrData.text, imageWidth, imageHeight);
+    }
+    
+    console.log('Total words to process:', words.length);
+    
+    // Search through all words for ordinal rankings
+    for (const word of words) {
+        const text = word.text.trim();
+        const bbox = word.bbox;
+        
+        // Check if this word contains an ordinal ranking
+        const ordinalMatch = text.match(/(\d+)\s*(?:st|nd|rd|th)/i);
+        if (ordinalMatch && bbox) {
+            const rankNum = parseInt(ordinalMatch[1]);
+            if (rankNum >= 1 && rankNum <= 18) {
+                const centerX = (bbox.x0 + bbox.x1) / 2;
+                const centerY = (bbox.y0 + bbox.y1) / 2;
+                
+                // Only consider rankings in the target area
+                if (centerY >= rankingAreaTop && centerY <= rankingAreaBottom) {
+                    rankings.push({
+                        rank: rankNum,
+                        x: centerX,
+                        y: centerY,
+                        text: text
+                    });
+                    console.log('Found ranking:', text, 'at position', centerX, centerY);
                 }
             }
         }
@@ -127,6 +165,62 @@ function parseOCRWithPositions(ocrData) {
     
     console.log('Final placements:', placements);
     return placements;
+}
+
+/**
+ * Fallback text parsing when word-level position data is not available
+ */
+function parseOCRTextFallback(text, imageWidth, imageHeight) {
+    console.log('Using fallback text parsing...');
+    
+    const placements = [];
+    const lines = text.split('\n');
+    
+    // Store positions with their line numbers for sorting
+    const positionsWithLines = [];
+    
+    // Enhanced pattern matching for rankings
+    const ordinalPattern = /(\d+)\s*(?:st|nd|rd|th)/gi;
+    
+    let lineNumber = 0;
+    for (const line of lines) {
+        lineNumber++;
+        const matches = [...line.matchAll(ordinalPattern)];
+        
+        for (const match of matches) {
+            const num = parseInt(match[1]);
+            if (num >= 1 && num <= 18) {
+                positionsWithLines.push({
+                    placement: num,
+                    line: lineNumber,
+                    index: match.index
+                });
+            }
+        }
+    }
+    
+    // Sort by line first (top to bottom), then by index (left to right)
+    positionsWithLines.sort((a, b) => {
+        if (a.line !== b.line) {
+            return a.line - b.line;
+        }
+        return a.index - b.index;
+    });
+    
+    // Extract just the placement numbers in order
+    const orderedPlacements = positionsWithLines.map(p => p.placement);
+    console.log('Ordered placements found (fallback):', orderedPlacements);
+    
+    // Take first 15 placements
+    const finalPlacements = orderedPlacements.slice(0, 15);
+    
+    // Fill remaining with defaults
+    while (finalPlacements.length < 15) {
+        finalPlacements.push(10);
+    }
+    
+    console.log('Final placements (fallback):', finalPlacements);
+    return finalPlacements;
 }
 
 /**
