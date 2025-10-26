@@ -126,6 +126,17 @@ function parseOCRWithPositions(ocrData) {
             bbox: w.bbox,
             hasOrdinal: /\d+\s*(?:st|nd|rd|th)/i.test(w.text)
         })));
+        
+        // Log words with ANY digits in the target area
+        console.log(`Words with digits in target area (${rankingAreaTop}-${rankingAreaBottom}):`);
+        words.forEach((w, i) => {
+            if (w.text && /\d/.test(w.text) && w.bbox) {
+                const centerY = (w.bbox.y0 + w.bbox.y1) / 2;
+                if (centerY >= rankingAreaTop && centerY <= rankingAreaBottom) {
+                    console.log(`  [${i}] "${w.text}" at (${w.bbox.x0},${w.bbox.y0})`);
+                }
+            }
+        });
     }
     
     // Search through all words for ordinal rankings
