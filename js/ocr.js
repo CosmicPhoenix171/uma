@@ -12,14 +12,11 @@ async function processImageWithOCR(file) {
             throw new Error('Tesseract.js library not loaded');
         }
 
-        console.log('Processing image with OCR...');
+        console.log('Processing image with OCR (no preprocessing)...');
         
-        // Preprocess the image for better OCR accuracy
-        const preprocessedImage = await preprocessImageForOCR(file);
-        
-        // Process the preprocessed image
+        // Process the raw image directly without preprocessing
         const result = await Tesseract.recognize(
-            preprocessedImage,
+            file,
             'eng',
             {
                 logger: m => {
