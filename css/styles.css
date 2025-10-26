@@ -118,11 +118,15 @@ body {
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    background-color: var(--card-bg);
+    background-color: rgba(255, 255, 255, 0.95);
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     overflow: hidden;
     margin-bottom: 20px;
+}
+
+[data-theme="dark"] .container {
+    background-color: rgba(45, 45, 45, 0.95);
 }
 
 /* Header Styles */
@@ -255,10 +259,14 @@ header h1 {
 /* Entry Panel Styles */
 .entry-panel {
     padding: 20px;
-    background-color: #f9f9f9;
+    background-color: rgba(249, 249, 249, 0.9);
     border-radius: 8px;
     margin: 20px;
     border: 2px solid var(--border-color);
+}
+
+[data-theme="dark"] .entry-panel {
+    background-color: rgba(40, 40, 40, 0.9);
 }
 
 .entry-panel h2 {
