@@ -48,85 +48,80 @@ function createImageFromFile(file) {
  */
 async function processImageRegions(file, width, height) {
     console.log('Processing image regions for placement rankings...');
+    console.log('Image size:', width, 'x', height);
+    
+    // Create image element and canvas for cropping
+    const img = await createImageFromFile(file);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
     
     // Define regions based on the typical Uma Musume result screen layout
     // The placement rankings (1st, 2nd, 3rd) appear below each character portrait
     // Grid is 5 columns × 3 rows
-    // Focus on the area where "1st", "2nd", etc. text appears (middle section of the results area)
-    const resultsAreaTop = Math.floor(height * 0.45); // Start around middle of screen
-    const resultsAreaHeight = Math.floor(height * 0.35); // Cover the main results area
+    // Focus on the area where "1st", "2nd", etc. text appears
+    const resultsAreaTop = Math.floor(height * 0.50); // Middle section where rankings appear
+    const resultsAreaHeight = Math.floor(height * 0.25); // Height of rankings area
     
-    const regions = [];
     const cols = 5;
     const rows = 3;
+    const allResults = [];
     
-    // Create regions for each character position, focusing on where placement text appears
+    // Process each character position
     for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
+            const index = row * cols + col;
             const regionWidth = Math.floor(width / cols);
             const regionLeft = col * regionWidth;
-            
-            // Position the region to capture the placement ranking text specifically
-            // This is typically in the middle portion of each character's section
             const regionY = resultsAreaTop + (row * Math.floor(resultsAreaHeight / rows));
             const regionH = Math.floor(resultsAreaHeight / rows);
             
-            regions.push({
-                left: regionLeft,
-                top: regionY,
-                width: regionWidth,
-                height: regionH,
-                index: row * cols + col
+            console.log(`Processing region ${index + 1}/${cols * rows}:`, {
+                left: regionLeft, top: regionY, width: regionWidth, height: regionH
             });
-        }
-    }
-    
-    console.log('Processing', regions.length, 'regions for placement rankings...');
-    
-    // Process each region
-    const allResults = [];
-    
-    for (let i = 0; i < regions.length; i++) {
-        const region = regions[i];
-        console.log(`Processing region ${i + 1}/${regions.length}:`, region);
-        
-        try {
-            const result = await Tesseract.recognize(
-                file,
-                'eng',
-                {
-                    rectangle: {
-                        left: region.left,
-                        top: region.top,
-                        width: region.width,
-                        height: region.height
-                    },
-                    logger: m => {
-                        if (m.status === 'recognizing text') {
-                            console.log(`Region ${i + 1} OCR Progress:`, Math.round(m.progress * 100) + '%');
+            
+            try {
+                // Crop the image to this region
+                canvas.width = regionWidth;
+                canvas.height = regionH;
+                ctx.drawImage(img, regionLeft, regionY, regionWidth, regionH, 0, 0, regionWidth, regionH);
+                
+                // Convert canvas to blob
+                const croppedBlob = await new Promise(resolve => canvas.toBlob(resolve));
+                
+                // Run OCR on the cropped image
+                const result = await Tesseract.recognize(
+                    croppedBlob,
+                    'eng',
+                    {
+                        logger: m => {
+                            if (m.status === 'recognizing text') {
+                                console.log(`Region ${index + 1} OCR Progress:`, Math.round(m.progress * 100) + '%');
+                            }
                         }
                     }
-                }
-            );
-            
-            const text = result.data.text.trim();
-            console.log(`Region ${i + 1} text:`, text);
-            
-            // Extract numbers from this region
-            const numbers = extractNumbersFromRegionText(text);
-            allResults.push({
-                region: i,
-                text: text,
-                numbers: numbers
-            });
-            
-        } catch (error) {
-            console.error(`Error processing region ${i + 1}:`, error);
-            allResults.push({
-                region: i,
-                text: '',
-                numbers: []
-            });
+                );
+                
+                const text = result.data.text.trim();
+                console.log(`Region ${index + 1} text:`, text);
+                
+                // Extract numbers from this region
+                const numbers = extractNumbersFromRegionText(text);
+                console.log(`Region ${index + 1} numbers found:`, numbers);
+                
+                allResults.push({
+                    region: index,
+                    text: text,
+                    numbers: numbers
+                });
+                
+            } catch (error) {
+                console.error(`Error processing region ${index + 1}:`, error);
+                allResults.push({
+                    region: index,
+                    text: '',
+                    numbers: []
+                });
+            }
         }
     }
     
