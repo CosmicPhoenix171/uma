@@ -13,7 +13,11 @@ async function initOCR() {
             }
             
             console.log('Initializing OCR worker...');
-            ocrWorker = await Tesseract.createWorker('eng');
+            ocrWorker = await Tesseract.createWorker({
+                logger: m => console.log('OCR:', m)
+            });
+            await ocrWorker.loadLanguage('eng');
+            await ocrWorker.initialize('eng');
             console.log('OCR worker initialized successfully');
         } catch (error) {
             console.error('Error initializing OCR worker:', error);
@@ -157,5 +161,3 @@ async function terminateOCR() {
         ocrWorker = null;
     }
 }
-
-document.getElementById('imageUpload').addEventListener('change', handleImageUpload);
