@@ -88,10 +88,16 @@ async function preprocessImageForOCR(file) {
                             const g = data[index + 1];
                             const b = data[index + 2];
                             
-                            // Detect yellow/gold text (high R and G, low B)
-                            // Yellow rankings typically have R>180, G>150, B<100
-                            const isYellowText = r > 180 && g > 150 && b < 120 && 
-                                                 r > b + 80 && g > b + 50;
+                            // Detect yellow/gold text with more permissive thresholds
+                            // Yellow rankings: high R and G, lower B
+                            const isYellowText = (
+                                // Bright yellow: R>180, G>150, B<120
+                                (r > 180 && g > 150 && b < 120) ||
+                                // Gold/darker yellow: R>150, G>120, B<80
+                                (r > 150 && g > 120 && b < 80 && r > g * 0.9) ||
+                                // Light yellow: all channels high but R,G > B
+                                (r > 200 && g > 200 && b < 180 && r > b + 40)
+                            ) && r > b + 50 && g > b + 30; // Ensure yellow dominance
                             
                             if (isYellowText) {
                                 // Convert yellow text to black for better OCR
@@ -236,8 +242,30 @@ function parseOCRWithPositions(ocrData) {
         const text = word.text.trim();
         const bbox = word.bbox;
         
-        // Check if this word contains an ordinal ranking
-        const ordinalMatch = text.match(/(\d+)\s*(?:st|nd|rd|th)/i);
+        // Check if this word contains an ordinal ranking (standard pattern)
+        let ordinalMatch = text.match(/(\d+)\s*(?:st|nd|rd|th)/i);
+        
+        // If no match, try alternative patterns for misread text
+        if (!ordinalMatch) {
+            // Try patterns like "3]", "2]", "1st", etc. where ] might be misread 't'
+            ordinalMatch = text.match(/(\d+)[]\[|)]/);
+            if (ordinalMatch) {
+                console.log('Found alternative pattern:', text, '-> treating as', ordinalMatch[1]);
+            }
+        }
+        
+        // Also try to match standalone numbers 1-18 in the target area
+        if (!ordinalMatch && /^\d{1,2}$/.test(text)) {
+            const num = parseInt(text);
+            if (num >= 1 && num <= 18 && bbox) {
+                const centerY = (bbox.y0 + bbox.y1) / 2;
+                if (centerY >= rankingAreaTop && centerY <= rankingAreaBottom) {
+                    ordinalMatch = [text, text]; // Fake match for standalone number
+                    console.log('Found standalone number in target area:', text);
+                }
+            }
+        }
+        
         if (ordinalMatch) {
             console.log('Found potential ordinal:', text, 'bbox:', bbox);
             
