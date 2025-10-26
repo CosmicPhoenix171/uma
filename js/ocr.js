@@ -6,11 +6,18 @@ let ocrWorker = null;
  * Initialize Tesseract worker
  */
 async function initOCR() {
-    if (!ocrWorker && typeof Tesseract !== 'undefined') {
+    if (!ocrWorker) {
         try {
+            if (typeof Tesseract === 'undefined') {
+                throw new Error('Tesseract.js library not loaded');
+            }
+            
+            console.log('Initializing OCR worker...');
             ocrWorker = await Tesseract.createWorker('eng');
+            console.log('OCR worker initialized successfully');
         } catch (error) {
             console.error('Error initializing OCR worker:', error);
+            throw new Error('Failed to initialize OCR: ' + error.message);
         }
     }
 }
@@ -27,21 +34,28 @@ async function processImageWithOCR(file) {
         await initOCR();
 
         if (!ocrWorker) {
-            throw new Error('OCR worker not initialized');
+            throw new Error('OCR worker failed to initialize');
         }
 
+        console.log('Processing image with OCR...');
+        
         // Process the image
-        const { data: { text } } = await ocrWorker.recognize(file);
+        const result = await ocrWorker.recognize(file);
+        const text = result.data.text;
+        
+        console.log('OCR text extracted:', text);
         
         // Parse the OCR text to extract placements
         const placements = parseOCRText(text);
+        
+        console.log('Parsed placements:', placements);
         
         hideLoading();
         return placements;
     } catch (error) {
         hideLoading();
         console.error('OCR processing error:', error);
-        throw error;
+        throw new Error(error.message || 'Failed to process image');
     }
 }
 
@@ -123,10 +137,13 @@ async function handleImageUpload(file) {
     }
 
     try {
+        console.log('Starting image upload processing...');
         const placements = await processImageWithOCR(file);
+        showToast('Image processed successfully! Review the results below.', 'success');
         return placements;
     } catch (error) {
-        showToast('Error processing image: ' + error.message, 'error');
+        console.error('Image upload error:', error);
+        showToast('Error processing image: ' + (error.message || 'Unknown error'), 'error');
         return null;
     }
 }
