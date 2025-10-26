@@ -45,10 +45,10 @@ body {
     background: linear-gradient(135deg, #87CEEB 0%, #4CA1FF 25%, #FF69B4 50%, #FFB6C1 75%, #87CEEB 100%);
     background-size: 200% 200%;
     animation: gradientShift 15s ease infinite;
-    /* Optional: If you have uma-hero.jpg image, uncomment below */
-    /* background-image: url('../assets/images/uma-hero.jpg'); */
-    /* background-size: cover; */
-    /* background-position: center; */
+    /* Uma Musume hero image */
+    background-image: url('../assets/images/uma-hero.webp');
+    background-size: cover;
+    background-position: center;
 }
 
 @keyframes gradientShift {
