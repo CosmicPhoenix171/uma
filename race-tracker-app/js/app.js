@@ -1,69 +1,171 @@
-// Main JavaScript file for the Race Tracker Application
+// Main App Module - Coordinates all modules and handles event listeners
 
-// Initialize the application
+/**
+ * Initialize application
+ */
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize OCR
+    initOCR();
+    
+    // Load and display existing data
+    updateSummaryTable();
+    
+    // Set up event listeners
     setupEventListeners();
-    loadRaceResults();
 });
 
-// Set up event listeners for buttons and other UI elements
+/**
+ * Set up all event listeners
+ */
 function setupEventListeners() {
-    document.getElementById('uploadButton').addEventListener('change', handleFileUpload);
-    document.getElementById('exportButton').addEventListener('click', exportRaceResults);
-    document.getElementById('clearButton').addEventListener('click', clearRaceResults);
-}
-
-// Handle file upload for OCR processing
-function handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (file) {
-        processImage(file);
-    }
-}
-
-// Load race results from localStorage
-function loadRaceResults() {
-    const results = getRaceResultsFromStorage();
-    if (results) {
-        displayRaceResults(results);
-    }
-}
-
-// Export race results to JSON
-function exportRaceResults() {
-    const results = getRaceResultsFromStorage();
-    if (results) {
-        const json = JSON.stringify(results);
-        downloadJSON(json, 'race_results.json');
-    }
-}
-
-// Clear race results from localStorage
-function clearRaceResults() {
-    clearRaceResultsInStorage();
-    displayRaceResults([]);
-}
-
-// Function to download JSON file
-function downloadJSON(json, filename) {
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
-
-// Function to display race results in the UI
-function displayRaceResults(results) {
-    const resultsContainer = document.getElementById('resultsContainer');
-    resultsContainer.innerHTML = ''; // Clear previous results
-    results.forEach(result => {
-        const resultElement = document.createElement('div');
-        resultElement.textContent = `Name: ${result.name}, Time: ${result.time}`;
-        resultsContainer.appendChild(resultElement);
+    // Manual entry button
+    document.getElementById('btn-manual').addEventListener('click', () => {
+        showManualEntry();
+    });
+    
+    // Upload screenshot button
+    document.getElementById('btn-upload').addEventListener('click', () => {
+        document.getElementById('screenshot-upload').click();
+    });
+    
+    // Screenshot upload handler
+    document.getElementById('screenshot-upload').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const placements = await handleImageUpload(file);
+            if (placements) {
+                showOCRReview(placements);
+            }
+        }
+        // Reset file input
+        e.target.value = '';
+    });
+    
+    // Export button
+    document.getElementById('btn-export').addEventListener('click', () => {
+        exportToJSON();
+    });
+    
+    // Import button
+    document.getElementById('btn-import').addEventListener('click', () => {
+        document.getElementById('json-import').click();
+    });
+    
+    // Import file handler
+    document.getElementById('json-import').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            importFromJSON(file);
+        }
+        // Reset file input
+        e.target.value = '';
+    });
+    
+    // Copy Discord table button
+    document.getElementById('btn-copy-discord').addEventListener('click', () => {
+        copyDiscordTable();
+    });
+    
+    // Reset button
+    document.getElementById('btn-reset').addEventListener('click', () => {
+        if (showConfirmation('Are you sure you want to reset all data? This cannot be undone.')) {
+            if (resetAllData()) {
+                showToast('All data has been reset', 'success');
+                updateSummaryTable();
+            } else {
+                showToast('Error resetting data', 'error');
+            }
+        }
+    });
+    
+    // Manual entry - Add Race button
+    document.getElementById('btn-add-race').addEventListener('click', () => {
+        handleManualRaceSubmit();
+    });
+    
+    // Manual entry - Cancel button
+    document.getElementById('btn-cancel-manual').addEventListener('click', () => {
+        hideManualEntry();
+    });
+    
+    // OCR review - Add Race button
+    document.getElementById('btn-add-ocr-race').addEventListener('click', () => {
+        handleOCRRaceSubmit();
+    });
+    
+    // OCR review - Cancel button
+    document.getElementById('btn-cancel-ocr').addEventListener('click', () => {
+        hideOCRReview();
     });
 }
+
+/**
+ * Handle manual race submission
+ */
+function handleManualRaceSubmit() {
+    try {
+        const date = document.getElementById('race-date').value;
+        
+        if (!date) {
+            showToast('Please select a race date', 'error');
+            return;
+        }
+        
+        const placements = getManualPlacements();
+        
+        if (!validatePlacements(placements)) {
+            showToast('Please enter valid placements (1-18) for all girls', 'error');
+            return;
+        }
+        
+        if (addRace(date, placements)) {
+            showToast('Race added successfully!', 'success');
+            hideManualEntry();
+            updateSummaryTable();
+        } else {
+            showToast('Error adding race', 'error');
+        }
+    } catch (error) {
+        console.error('Error submitting race:', error);
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Handle OCR race submission
+ */
+function handleOCRRaceSubmit() {
+    try {
+        const date = document.getElementById('ocr-race-date').value;
+        
+        if (!date) {
+            showToast('Please select a race date', 'error');
+            return;
+        }
+        
+        const placements = getOCRPlacements();
+        
+        if (!validatePlacements(placements)) {
+            showToast('Please select valid placements (1-18) for all girls', 'error');
+            return;
+        }
+        
+        if (addRace(date, placements)) {
+            showToast('Race added successfully!', 'success');
+            hideOCRReview();
+            updateSummaryTable();
+        } else {
+            showToast('Error adding race', 'error');
+        }
+    } catch (error) {
+        console.error('Error submitting race:', error);
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Cleanup on page unload
+ */
+window.addEventListener('beforeunload', () => {
+    terminateOCR();
+});

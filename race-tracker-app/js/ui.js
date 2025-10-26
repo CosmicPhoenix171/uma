@@ -1,79 +1,227 @@
-// ui.js
-document.addEventListener('DOMContentLoaded', () => {
-    const entryPanel = document.getElementById('entry-panel');
-    const resultsPanel = document.getElementById('results-panel');
-    const toggleButton = document.getElementById('toggle-entry-panel');
-    const saveButton = document.getElementById('save-results');
-    const exportButton = document.getElementById('export-results');
+// UI Module - Manages user interface interactions
 
-    toggleButton.addEventListener('click', () => {
-        if (entryPanel.style.display === 'none' || entryPanel.style.display === '') {
-            entryPanel.style.display = 'block';
-            resultsPanel.style.display = 'none';
-        } else {
-            entryPanel.style.display = 'none';
-            resultsPanel.style.display = 'block';
-        }
-    });
+/**
+ * Show manual entry panel
+ */
+function showManualEntry() {
+    const panel = document.getElementById('manual-entry-panel');
+    const ocrPanel = document.getElementById('ocr-review-panel');
+    
+    // Hide OCR panel if open
+    ocrPanel.classList.add('hidden');
+    
+    // Show manual panel
+    panel.classList.remove('hidden');
+    
+    // Set default date to today
+    const dateInput = document.getElementById('race-date');
+    const today = new Date().toISOString().split('T')[0];
+    dateInput.value = today;
+    
+    // Clear all inputs
+    for (let i = 1; i <= 15; i++) {
+        document.getElementById(`girl-${i}`).value = '';
+    }
+    
+    // Scroll to panel
+    panel.scrollIntoView({ behavior: 'smooth' });
+}
 
-    saveButton.addEventListener('click', () => {
-        const results = getRaceResultsFromInputs();
-        if (validateResults(results)) {
-            saveResultsToLocalStorage(results);
-            updateResultsUI(results);
-        } else {
-            alert('Please enter valid results for all participants.');
-        }
-    });
+/**
+ * Hide manual entry panel
+ */
+function hideManualEntry() {
+    document.getElementById('manual-entry-panel').classList.add('hidden');
+}
 
-    exportButton.addEventListener('click', () => {
-        const results = getRaceResultsFromLocalStorage();
-        exportResultsAsJSON(results);
-    });
-
-    function getRaceResultsFromInputs() {
-        const results = [];
-        for (let i = 1; i <= 15; i++) {
-            const input = document.getElementById(`participant-${i}`);
-            if (input) {
-                results.push({ participant: `Girl ${i}`, time: input.value });
+/**
+ * Show OCR review panel with prefilled values
+ */
+function showOCRReview(placements) {
+    const panel = document.getElementById('ocr-review-panel');
+    const manualPanel = document.getElementById('manual-entry-panel');
+    const grid = document.getElementById('ocr-girls-grid');
+    
+    // Hide manual panel if open
+    manualPanel.classList.add('hidden');
+    
+    // Clear grid
+    grid.innerHTML = '';
+    
+    // Create dropdowns for each girl
+    for (let i = 1; i <= 15; i++) {
+        const formGroup = document.createElement('div');
+        formGroup.className = 'form-group';
+        
+        const label = document.createElement('label');
+        label.textContent = `Girl ${i}:`;
+        label.setAttribute('for', `ocr-girl-${i}`);
+        
+        const select = document.createElement('select');
+        select.id = `ocr-girl-${i}`;
+        select.className = 'form-control';
+        
+        // Add options 1-18
+        for (let j = 1; j <= 18; j++) {
+            const option = document.createElement('option');
+            option.value = j;
+            option.textContent = j;
+            if (placements[i - 1] === j) {
+                option.selected = true;
             }
+            select.appendChild(option);
         }
-        return results;
+        
+        formGroup.appendChild(label);
+        formGroup.appendChild(select);
+        grid.appendChild(formGroup);
     }
+    
+    // Set default date to today
+    const dateInput = document.getElementById('ocr-race-date');
+    const today = new Date().toISOString().split('T')[0];
+    dateInput.value = today;
+    
+    // Show panel
+    panel.classList.remove('hidden');
+    panel.scrollIntoView({ behavior: 'smooth' });
+}
 
-    function validateResults(results) {
-        return results.every(result => result.time.trim() !== '');
-    }
+/**
+ * Hide OCR review panel
+ */
+function hideOCRReview() {
+    document.getElementById('ocr-review-panel').classList.add('hidden');
+}
 
-    function updateResultsUI(results) {
-        const resultsList = document.getElementById('results-list');
-        resultsList.innerHTML = '';
-        results.forEach(result => {
-            const li = document.createElement('li');
-            li.textContent = `${result.participant}: ${result.time}`;
-            resultsList.appendChild(li);
-        });
+/**
+ * Get placements from manual entry form
+ */
+function getManualPlacements() {
+    const placements = [];
+    for (let i = 1; i <= 15; i++) {
+        const value = document.getElementById(`girl-${i}`).value;
+        placements.push(parseInt(value));
     }
+    return placements;
+}
 
-    function getRaceResultsFromLocalStorage() {
-        return JSON.parse(localStorage.getItem('raceResults')) || [];
+/**
+ * Get placements from OCR review form
+ */
+function getOCRPlacements() {
+    const placements = [];
+    for (let i = 1; i <= 15; i++) {
+        const value = document.getElementById(`ocr-girl-${i}`).value;
+        placements.push(parseInt(value));
     }
+    return placements;
+}
 
-    function saveResultsToLocalStorage(results) {
-        localStorage.setItem('raceResults', JSON.stringify(results));
+/**
+ * Validate placements
+ */
+function validatePlacements(placements) {
+    // Check if all are valid numbers between 1 and 18
+    for (const placement of placements) {
+        if (isNaN(placement) || placement < 1 || placement > 18) {
+            return false;
+        }
     }
+    return true;
+}
 
-    function exportResultsAsJSON(results) {
-        const dataStr = JSON.stringify(results, null, 2);
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'race_results.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+/**
+ * Update summary table
+ */
+function updateSummaryTable() {
+    const stats = calculateStats();
+    const tbody = document.getElementById('summary-tbody');
+    const noDataMessage = document.getElementById('no-data-message');
+    
+    if (stats.length === 0) {
+        tbody.innerHTML = '';
+        noDataMessage.classList.remove('hidden');
+        return;
     }
-});
+    
+    noDataMessage.classList.add('hidden');
+    tbody.innerHTML = '';
+    
+    for (const stat of stats) {
+        const row = document.createElement('tr');
+        
+        // Girl number
+        const girlCell = document.createElement('td');
+        girlCell.textContent = `Girl ${stat.girl}`;
+        row.appendChild(girlCell);
+        
+        // Races count
+        const racesCell = document.createElement('td');
+        racesCell.textContent = stat.races;
+        row.appendChild(racesCell);
+        
+        // Average with badge
+        const avgCell = document.createElement('td');
+        const avgBadge = document.createElement('span');
+        avgBadge.className = `badge badge-${getBadgeColor(stat.average)}`;
+        avgBadge.textContent = stat.average.toFixed(2);
+        avgCell.appendChild(avgBadge);
+        row.appendChild(avgCell);
+        
+        // Podiums with emojis
+        const podiumsCell = document.createElement('td');
+        let podiumText = `${stat.podiums}`;
+        if (stat.first > 0 || stat.second > 0 || stat.third > 0) {
+            podiumText += ' (';
+            if (stat.first > 0) podiumText += `🥇${stat.first} `;
+            if (stat.second > 0) podiumText += `🥈${stat.second} `;
+            if (stat.third > 0) podiumText += `🥉${stat.third}`;
+            podiumText += ')';
+        }
+        podiumsCell.textContent = podiumText;
+        row.appendChild(podiumsCell);
+        
+        // Fails
+        const failsCell = document.createElement('td');
+        failsCell.textContent = stat.fails;
+        row.appendChild(failsCell);
+        
+        tbody.appendChild(row);
+    }
+}
+
+/**
+ * Show toast notification
+ */
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = `toast ${type}`;
+    toast.classList.remove('hidden');
+    
+    setTimeout(() => {
+        toast.classList.add('hidden');
+    }, 3000);
+}
+
+/**
+ * Show loading indicator
+ */
+function showLoading() {
+    document.getElementById('loading').classList.remove('hidden');
+}
+
+/**
+ * Hide loading indicator
+ */
+function hideLoading() {
+    document.getElementById('loading').classList.add('hidden');
+}
+
+/**
+ * Show confirmation dialog
+ */
+function showConfirmation(message) {
+    return confirm(message);
+}

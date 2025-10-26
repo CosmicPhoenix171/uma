@@ -1,68 +1,115 @@
-body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 0;
-}
+/* Mobile-specific styles */
 
-.header {
-    background-color: #4CAF50;
-    color: white;
-    text-align: center;
-    padding: 10px 0;
-}
+@media (max-width: 768px) {
+    body {
+        padding: 5px;
+    }
 
-.entry-panel {
-    padding: 15px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
+    .container {
+        border-radius: 8px;
+    }
 
-.button {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    margin: 5px;
-    cursor: pointer;
-    border-radius: 5px;
-    width: 100%;
-}
+    header h1 {
+        font-size: 1.4rem;
+    }
 
-.button:hover {
-    background-color: #45a049;
-}
+    .action-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
 
-.results {
-    margin-top: 20px;
-    width: 100%;
-    overflow-x: auto;
-}
+    .action-buttons .btn {
+        width: 100%;
+        justify-content: center;
+    }
 
-.results table {
-    width: 100%;
-    border-collapse: collapse;
-}
+    .legend small {
+        font-size: 0.75rem;
+    }
 
-.results th, .results td {
-    border: 1px solid #ddd;
-    padding: 8px;
-}
-
-.results th {
-    background-color: #f2f2f2;
-}
-
-@media (max-width: 600px) {
     .entry-panel {
+        margin: 10px;
+        padding: 15px;
+    }
+
+    .girls-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+    }
+
+    .panel-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .panel-actions .btn {
+        width: 100%;
+    }
+
+    #summary-section {
         padding: 10px;
     }
 
-    .button {
-        padding: 8px 16px;
+    .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
-    .results th, .results td {
-        font-size: 14px;
+    table {
+        font-size: 0.85rem;
+    }
+
+    th, td {
+        padding: 8px 10px;
+    }
+
+    th {
+        font-size: 0.75rem;
+    }
+
+    .toast {
+        left: 10px;
+        right: 10px;
+        transform: none;
+        bottom: 10px;
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 480px) {
+    header h1 {
+        font-size: 1.2rem;
+    }
+
+    .girls-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .action-buttons .btn {
+        padding: 14px 20px;
+        font-size: 1rem;
+    }
+
+    table {
+        font-size: 0.8rem;
+    }
+
+    th, td {
+        padding: 6px 8px;
+    }
+}
+
+/* Touch-friendly tap targets */
+@media (hover: none) {
+    .btn {
+        min-height: 48px;
+        min-width: 48px;
+    }
+
+    input[type="number"],
+    input[type="date"],
+    select {
+        min-height: 44px;
+        font-size: 16px; /* Prevents zoom on iOS */
     }
 }
