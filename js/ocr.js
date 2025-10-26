@@ -118,6 +118,16 @@ function parseOCRWithPositions(ocrData) {
     
     console.log('Total words to process:', words.length);
     
+    // Log first few words to understand the structure
+    if (words.length > 0) {
+        console.log('Sample word structure:', words[0]);
+        console.log('First 10 words:', words.slice(0, 10).map(w => ({ 
+            text: w.text, 
+            bbox: w.bbox,
+            hasOrdinal: /\d+\s*(?:st|nd|rd|th)/i.test(w.text)
+        })));
+    }
+    
     // Search through all words for ordinal rankings
     for (const word of words) {
         const text = word.text.trim();
@@ -125,22 +135,32 @@ function parseOCRWithPositions(ocrData) {
         
         // Check if this word contains an ordinal ranking
         const ordinalMatch = text.match(/(\d+)\s*(?:st|nd|rd|th)/i);
-        if (ordinalMatch && bbox) {
-            const rankNum = parseInt(ordinalMatch[1]);
-            if (rankNum >= 1 && rankNum <= 18) {
-                const centerX = (bbox.x0 + bbox.x1) / 2;
-                const centerY = (bbox.y0 + bbox.y1) / 2;
-                
-                // Only consider rankings in the target area
-                if (centerY >= rankingAreaTop && centerY <= rankingAreaBottom) {
-                    rankings.push({
-                        rank: rankNum,
-                        x: centerX,
-                        y: centerY,
-                        text: text
-                    });
-                    console.log('Found ranking:', text, 'at position', centerX, centerY);
+        if (ordinalMatch) {
+            console.log('Found potential ordinal:', text, 'bbox:', bbox);
+            
+            if (bbox) {
+                const rankNum = parseInt(ordinalMatch[1]);
+                if (rankNum >= 1 && rankNum <= 18) {
+                    const centerX = (bbox.x0 + bbox.x1) / 2;
+                    const centerY = (bbox.y0 + bbox.y1) / 2;
+                    
+                    console.log(`  -> Rank ${rankNum} at (${centerX}, ${centerY}), target area: ${rankingAreaTop}-${rankingAreaBottom}`);
+                    
+                    // Only consider rankings in the target area
+                    if (centerY >= rankingAreaTop && centerY <= rankingAreaBottom) {
+                        rankings.push({
+                            rank: rankNum,
+                            x: centerX,
+                            y: centerY,
+                            text: text
+                        });
+                        console.log('  -> ACCEPTED: Found ranking:', text, 'at position', centerX, centerY);
+                    } else {
+                        console.log('  -> REJECTED: Outside target area');
+                    }
                 }
+            } else {
+                console.log('  -> REJECTED: No bbox data');
             }
         }
     }
