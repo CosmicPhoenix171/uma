@@ -43,7 +43,9 @@ function toggleTheme() {
  */
 function updateThemeIcon(theme) {
     const icon = document.getElementById('theme-icon');
-    icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    if (icon) {
+        icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
 }
 
 /**
@@ -51,7 +53,13 @@ function updateThemeIcon(theme) {
  */
 function setupEventListeners() {
     // Theme toggle button
-    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            console.log('Theme toggle clicked');
+            toggleTheme();
+        });
+    }
     
     // Manual entry button
     document.getElementById('btn-manual').addEventListener('click', () => {
