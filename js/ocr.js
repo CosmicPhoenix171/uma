@@ -42,62 +42,80 @@ async function processImageWithOCR(file) {
 /**
  * Parse OCR text to extract placement numbers
  * Enhanced for Uma Musume Team Trials result screens
- * Looks for patterns like "1st", "2nd", "3rd", "4th", etc.
+ * Handles grid layout: reads left-to-right, top-to-bottom
+ * Grid is 5 columns × 3 rows = 15 characters
  */
 function parseOCRText(text) {
+    console.log('Raw OCR text:', text);
+    
     const placements = [];
+    const lines = text.split('\n');
     
-    // Enhanced cleaning - preserve important characters
-    const cleanText = text.replace(/[^\w\s]/g, ' ').toLowerCase();
+    // Store positions with their line numbers for sorting
+    const positionsWithLines = [];
     
-    // Look for ordinal patterns (1st, 2nd, 3rd, etc.)
-    const ordinalPattern = /(\d+)(?:st|nd|rd|th)/gi;
-    const matches = [...text.matchAll(ordinalPattern)];
+    // Enhanced pattern matching for rankings
+    // Matches patterns like: "1st", "2nd", "3rd", "4th", "1 st", "2 nd", etc.
+    const ordinalPattern = /(\d+)\s*(?:st|nd|rd|th)/gi;
     
-    // Extract numbers from ordinal matches
-    const foundNumbers = new Set();
-    for (const match of matches) {
-        const num = parseInt(match[1]);
-        if (num >= 1 && num <= 18 && !foundNumbers.has(num)) {
-            foundNumbers.add(num);
-            placements.push(num);
-        }
-    }
-    
-    // If we didn't find enough, try standalone numbers
-    if (placements.length < 15) {
-        const numberPattern = /\b(\d{1,2})\b/g;
-        const numberMatches = [...cleanText.matchAll(numberPattern)];
+    let lineNumber = 0;
+    for (const line of lines) {
+        lineNumber++;
+        const matches = [...line.matchAll(ordinalPattern)];
         
-        for (const match of numberMatches) {
+        for (const match of matches) {
             const num = parseInt(match[1]);
-            if (num >= 1 && num <= 18 && !foundNumbers.has(num) && placements.length < 15) {
-                foundNumbers.add(num);
-                placements.push(num);
+            if (num >= 1 && num <= 18) {
+                // Store the position with its line number (for top-to-bottom ordering)
+                // and match index (for left-to-right ordering within the line)
+                positionsWithLines.push({
+                    placement: num,
+                    line: lineNumber,
+                    index: match.index
+                });
             }
         }
     }
     
-    // Fill remaining slots with sequential numbers that haven't been used
+    // Sort by line first (top to bottom), then by index (left to right)
+    positionsWithLines.sort((a, b) => {
+        if (a.line !== b.line) {
+            return a.line - b.line;
+        }
+        return a.index - b.index;
+    });
+    
+    // Extract just the placement numbers in order
+    const orderedPlacements = positionsWithLines.map(p => p.placement);
+    
+    console.log('Ordered placements found:', orderedPlacements);
+    
+    // If we found at least some placements, use them
+    if (orderedPlacements.length > 0) {
+        // Take up to 15 placements
+        for (let i = 0; i < Math.min(15, orderedPlacements.length); i++) {
+            placements.push(orderedPlacements[i]);
+        }
+    }
+    
+    // Fill remaining slots with reasonable defaults
+    const usedNumbers = new Set(placements);
     while (placements.length < 15) {
+        // Find the next unused number between 1-18
         for (let i = 1; i <= 18; i++) {
-            if (!foundNumbers.has(i)) {
+            if (!usedNumbers.has(i)) {
                 placements.push(i);
-                foundNumbers.add(i);
+                usedNumbers.add(i);
                 break;
             }
         }
-        // Safety break if we run out of numbers
-        if (placements.length < 15 && foundNumbers.size >= 18) {
-            // Just fill with reasonable defaults
-            const remaining = 15 - placements.length;
-            for (let j = 0; j < remaining; j++) {
-                placements.push(Math.min(18, j + 1));
-            }
-            break;
+        // Safety: if all 1-18 are used, just use sequential numbers
+        if (usedNumbers.size >= 18 && placements.length < 15) {
+            placements.push(placements.length + 1);
         }
     }
     
+    console.log('Final placements array (15 girls):', placements);
     return placements.slice(0, 15);
 }
 
