@@ -29,13 +29,14 @@
             
             <!-- Action Buttons -->
             <div class="action-buttons">
-                <button id="btn-manual" class="btn btn-primary">➕ Add Race</button>
-                <button id="btn-upload" class="btn btn-primary">📷 Upload Screenshot</button>
+                <button id="btn-manual" class="btn btn-primary">➕ Add Race (Manual)</button>
+                <!-- <button id="btn-upload" class="btn btn-primary">📷 Upload Screenshot</button> -->
                 <button id="btn-export" class="btn btn-secondary">💾 Export</button>
                 <button id="btn-import" class="btn btn-secondary">📂 Import</button>
                 <button id="btn-copy-discord" class="btn btn-accent">📋 Copy Discord Table</button>
                 <button id="btn-reset" class="btn btn-danger">🗑️ Reset</button>
             </div>
+            <p class="info-text" style="text-align: center; margin-top: 0.5rem; font-size: 0.85rem;">⚠️ OCR disabled - game screenshots can't be read reliably. Please use manual entry.</p>
             
             <!-- Legend -->
             <div class="legend">
@@ -51,71 +52,42 @@
         <!-- Manual Entry Panel (Hidden by default) -->
         <section id="manual-entry-panel" class="entry-panel hidden">
             <h2>Manual Entry</h2>
+            <p class="help-text">💡 Tip: Enter placements in grid order (left-to-right, top-to-bottom). Row 1: Girls 1-5, Row 2: Girls 6-10, Row 3: Girls 11-15</p>
             <div class="form-grid">
                 <div class="form-group">
                     <label for="race-date">Race Date:</label>
                     <input type="date" id="race-date" required>
                 </div>
-                <div class="girls-grid">
-                    <div class="form-group">
-                        <label for="girl-1">Girl 1:</label>
-                        <input type="number" id="girl-1" min="1" max="18" required>
+                <div class="girls-grid quick-entry">
+                    <div class="grid-row">
+                        <h4>Row 1 (Top)</h4>
+                        <div class="row-inputs">
+                            <input type="number" id="girl-1" min="1" max="18" placeholder="G1" required>
+                            <input type="number" id="girl-2" min="1" max="18" placeholder="G2" required>
+                            <input type="number" id="girl-3" min="1" max="18" placeholder="G3" required>
+                            <input type="number" id="girl-4" min="1" max="18" placeholder="G4" required>
+                            <input type="number" id="girl-5" min="1" max="18" placeholder="G5" required>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="girl-2">Girl 2:</label>
-                        <input type="number" id="girl-2" min="1" max="18" required>
+                    <div class="grid-row">
+                        <h4>Row 2 (Middle)</h4>
+                        <div class="row-inputs">
+                            <input type="number" id="girl-6" min="1" max="18" placeholder="G6" required>
+                            <input type="number" id="girl-7" min="1" max="18" placeholder="G7" required>
+                            <input type="number" id="girl-8" min="1" max="18" placeholder="G8" required>
+                            <input type="number" id="girl-9" min="1" max="18" placeholder="G9" required>
+                            <input type="number" id="girl-10" min="1" max="18" placeholder="G10" required>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="girl-3">Girl 3:</label>
-                        <input type="number" id="girl-3" min="1" max="18" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="girl-4">Girl 4:</label>
-                        <input type="number" id="girl-4" min="1" max="18" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="girl-5">Girl 5:</label>
-                        <input type="number" id="girl-5" min="1" max="18" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="girl-6">Girl 6:</label>
-                        <input type="number" id="girl-6" min="1" max="18" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="girl-7">Girl 7:</label>
-                        <input type="number" id="girl-7" min="1" max="18" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="girl-8">Girl 8:</label>
-                        <input type="number" id="girl-8" min="1" max="18" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="girl-9">Girl 9:</label>
-                        <input type="number" id="girl-9" min="1" max="18" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="girl-10">Girl 10:</label>
-                        <input type="number" id="girl-10" min="1" max="18" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="girl-11">Girl 11:</label>
-                        <input type="number" id="girl-11" min="1" max="18" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="girl-12">Girl 12:</label>
-                        <input type="number" id="girl-12" min="1" max="18" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="girl-13">Girl 13:</label>
-                        <input type="number" id="girl-13" min="1" max="18" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="girl-14">Girl 14:</label>
-                        <input type="number" id="girl-14" min="1" max="18" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="girl-15">Girl 15:</label>
-                        <input type="number" id="girl-15" min="1" max="18" required>
+                    <div class="grid-row">
+                        <h4>Row 3 (Bottom)</h4>
+                        <div class="row-inputs">
+                            <input type="number" id="girl-11" min="1" max="18" placeholder="G11" required>
+                            <input type="number" id="girl-12" min="1" max="18" placeholder="G12" required>
+                            <input type="number" id="girl-13" min="1" max="18" placeholder="G13" required>
+                            <input type="number" id="girl-14" min="1" max="18" placeholder="G14" required>
+                            <input type="number" id="girl-15" min="1" max="18" placeholder="G15" required>
+                        </div>
                     </div>
                 </div>
             </div>
