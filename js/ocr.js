@@ -1,7 +1,7 @@
 // OCR Module - Handles image processing with Tesseract.js
 
 /**
- * Process image with OCR - Simplified approach using Tesseract.recognize
+ * Process image with OCR - Enhanced approach with region focusing
  */
 async function processImageWithOCR(file) {
     try {
@@ -14,21 +14,12 @@ async function processImageWithOCR(file) {
 
         console.log('Processing image with OCR...');
         
-        // Use Tesseract.recognize directly (simpler API)
-        const result = await Tesseract.recognize(
-            file,
-            'eng',
-            {
-                logger: m => console.log('OCR Progress:', m)
-            }
-        );
+        // First, create an image element to get dimensions
+        const img = await createImageFromFile(file);
+        console.log('Image dimensions:', img.width, 'x', img.height);
         
-        const text = result.data.text;
-        console.log('OCR text extracted:', text);
-        
-        // Parse the OCR text to extract placements
-        const placements = parseOCRText(text);
-        console.log('Parsed placements:', placements);
+        // Try region-based OCR for better accuracy
+        const placements = await processImageRegions(file, img.width, img.height);
         
         hideLoading();
         return placements;
@@ -40,7 +31,185 @@ async function processImageWithOCR(file) {
 }
 
 /**
- * Parse OCR text to extract placement numbers
+ * Create image element from file
+ */
+function createImageFromFile(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+    });
+}
+
+/**
+ * Process specific regions of the image for better OCR accuracy
+ * Focuses on placement rankings (1st, 2nd, 3rd, etc.) which appear below each character
+ */
+async function processImageRegions(file, width, height) {
+    console.log('Processing image regions for placement rankings...');
+    
+    // Define regions based on the typical Uma Musume result screen layout
+    // The placement rankings (1st, 2nd, 3rd) appear below each character portrait
+    // Grid is 5 columns × 3 rows
+    // Focus on the area where "1st", "2nd", etc. text appears (middle section of the results area)
+    const resultsAreaTop = Math.floor(height * 0.45); // Start around middle of screen
+    const resultsAreaHeight = Math.floor(height * 0.35); // Cover the main results area
+    
+    const regions = [];
+    const cols = 5;
+    const rows = 3;
+    
+    // Create regions for each character position, focusing on where placement text appears
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+            const regionWidth = Math.floor(width / cols);
+            const regionLeft = col * regionWidth;
+            
+            // Position the region to capture the placement ranking text specifically
+            // This is typically in the middle portion of each character's section
+            const regionY = resultsAreaTop + (row * Math.floor(resultsAreaHeight / rows));
+            const regionH = Math.floor(resultsAreaHeight / rows);
+            
+            regions.push({
+                left: regionLeft,
+                top: regionY,
+                width: regionWidth,
+                height: regionH,
+                index: row * cols + col
+            });
+        }
+    }
+    
+    console.log('Processing', regions.length, 'regions for placement rankings...');
+    
+    // Process each region
+    const allResults = [];
+    
+    for (let i = 0; i < regions.length; i++) {
+        const region = regions[i];
+        console.log(`Processing region ${i + 1}/${regions.length}:`, region);
+        
+        try {
+            const result = await Tesseract.recognize(
+                file,
+                'eng',
+                {
+                    rectangle: {
+                        left: region.left,
+                        top: region.top,
+                        width: region.width,
+                        height: region.height
+                    },
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            console.log(`Region ${i + 1} OCR Progress:`, Math.round(m.progress * 100) + '%');
+                        }
+                    }
+                }
+            );
+            
+            const text = result.data.text.trim();
+            console.log(`Region ${i + 1} text:`, text);
+            
+            // Extract numbers from this region
+            const numbers = extractNumbersFromRegionText(text);
+            allResults.push({
+                region: i,
+                text: text,
+                numbers: numbers
+            });
+            
+        } catch (error) {
+            console.error(`Error processing region ${i + 1}:`, error);
+            allResults.push({
+                region: i,
+                text: '',
+                numbers: []
+            });
+        }
+    }
+    
+    // Parse all results to get placements
+    const placements = parseRegionResults(allResults);
+    console.log('Final parsed placements:', placements);
+    
+    return placements;
+}
+
+/**
+ * Extract placement numbers from region text
+ * Focuses ONLY on ordinal placements (1st, 2nd, 3rd, etc.)
+ */
+function extractNumbersFromRegionText(text) {
+    // Look only for placement rankings
+    const numbers = [];
+    
+    // Pattern 1: Ordinal numbers (1st, 2nd, 3rd, 4th, etc.) - PRIMARY FOCUS
+    const ordinalPattern = /(\d+)\s*(?:st|nd|rd|th)/gi;
+    const ordinalMatches = [...text.matchAll(ordinalPattern)];
+    for (const match of ordinalMatches) {
+        const num = parseInt(match[1]);
+        if (num >= 1 && num <= 18) {
+            numbers.push({ value: num, type: 'ordinal', confidence: 1.0 });
+        }
+    }
+    
+    // If no ordinal found, try plain numbers that could be placements
+    // but EXCLUDE numbers that look like fan counts (> 18 or with + sign)
+    if (numbers.length === 0) {
+        const plainNumberPattern = /\b(\d{1,2})\b/g;
+        const plainMatches = [...text.matchAll(plainNumberPattern)];
+        for (const match of plainMatches) {
+            const num = parseInt(match[1]);
+            // Only accept numbers 1-18 as potential placements
+            if (num >= 1 && num <= 18) {
+                // Skip if this looks like it's part of a fan count (e.g., near a + sign)
+                const context = text.substring(Math.max(0, match.index - 2), match.index + match[0].length + 2);
+                if (!context.includes('+')) {
+                    numbers.push({ value: num, type: 'plain', confidence: 0.6 });
+                }
+            }
+        }
+    }
+    
+    return numbers;
+}
+
+/**
+ * Parse results from all regions to determine placements
+ */
+function parseRegionResults(regionResults) {
+    console.log('Parsing region results:', regionResults);
+    
+    const placements = new Array(15).fill(10); // Default to mid-pack
+    
+    // Process each region result
+    for (const result of regionResults) {
+        if (result.region < 15 && result.numbers.length > 0) {
+            // Sort numbers by confidence and type priority
+            const sortedNumbers = result.numbers.sort((a, b) => {
+                // Prioritize ordinals over other types
+                if (a.type === 'ordinal' && b.type !== 'ordinal') return -1;
+                if (b.type === 'ordinal' && a.type !== 'ordinal') return 1;
+                // Then by confidence
+                return b.confidence - a.confidence;
+            });
+            
+            // Use the best number found
+            const bestNumber = sortedNumbers[0];
+            placements[result.region] = bestNumber.value;
+            
+            console.log(`Region ${result.region}: Using ${bestNumber.value} (${bestNumber.type}, confidence: ${bestNumber.confidence})`);
+        }
+    }
+    
+    console.log('Final placements from regions:', placements);
+    return placements;
+}
+
+/**
+ * Fallback: Parse OCR text to extract placement numbers (original method)
  * Enhanced for Uma Musume Team Trials result screens
  * Handles grid layout: reads left-to-right, top-to-bottom
  * Grid is 5 columns × 3 rows = 15 characters
