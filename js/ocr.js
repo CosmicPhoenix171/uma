@@ -19,6 +19,11 @@ async function processImageWithOCR(file) {
             file,
             'eng',
             {
+                // Prefer sparse text mode (works better for scattered UI labels)
+                psm: 11, // Sparse text. Find as much text as possible in no particular order.
+                // Whitelist characters common in rankings to reduce confusion
+                tessedit_char_whitelist: '0123456789stndrdthSTNDRDTH[]()!|',
+                preserve_interword_spaces: '1',
                 logger: m => {
                     if (m.status === 'recognizing text') {
                         console.log('OCR Progress:', Math.round(m.progress * 100) + '%');
