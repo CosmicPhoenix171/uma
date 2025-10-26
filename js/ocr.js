@@ -242,57 +242,55 @@ function parseOCRWithPositions(ocrData) {
         const text = word.text.trim();
         const bbox = word.bbox;
         
-        // Check if this word contains an ordinal ranking (standard pattern)
+        if (!bbox) continue; // Skip words without position data
+        
+        const centerX = (bbox.x0 + bbox.x1) / 2;
+        const centerY = (bbox.y0 + bbox.y1) / 2;
+        
+        // Only process words in the target ranking area
+        if (centerY < rankingAreaTop || centerY > rankingAreaBottom) {
+            continue;
+        }
+        
+        let rankNum = null;
+        let matchType = null;
+        
+        // Try standard ordinal pattern (1st, 2nd, 3rd, 4th)
         let ordinalMatch = text.match(/(\d+)\s*(?:st|nd|rd|th)/i);
-        
-        // If no match, try alternative patterns for misread text
-        if (!ordinalMatch) {
-            // Try patterns like "3]", "2]", "1st", etc. where ] might be misread 't'
-            ordinalMatch = text.match(/(\d+)[]\[|)]/);
-            if (ordinalMatch) {
-                console.log('Found alternative pattern:', text, '-> treating as', ordinalMatch[1]);
-            }
-        }
-        
-        // Also try to match standalone numbers 1-18 in the target area
-        if (!ordinalMatch && /^\d{1,2}$/.test(text)) {
-            const num = parseInt(text);
-            if (num >= 1 && num <= 18 && bbox) {
-                const centerY = (bbox.y0 + bbox.y1) / 2;
-                if (centerY >= rankingAreaTop && centerY <= rankingAreaBottom) {
-                    ordinalMatch = [text, text]; // Fake match for standalone number
-                    console.log('Found standalone number in target area:', text);
-                }
-            }
-        }
-        
         if (ordinalMatch) {
-            console.log('Found potential ordinal:', text, 'bbox:', bbox);
-            
-            if (bbox) {
-                const rankNum = parseInt(ordinalMatch[1]);
-                if (rankNum >= 1 && rankNum <= 18) {
-                    const centerX = (bbox.x0 + bbox.x1) / 2;
-                    const centerY = (bbox.y0 + bbox.y1) / 2;
-                    
-                    console.log(`  -> Rank ${rankNum} at (${centerX}, ${centerY}), target area: ${rankingAreaTop}-${rankingAreaBottom}`);
-                    
-                    // Only consider rankings in the target area
-                    if (centerY >= rankingAreaTop && centerY <= rankingAreaBottom) {
-                        rankings.push({
-                            rank: rankNum,
-                            x: centerX,
-                            y: centerY,
-                            text: text
-                        });
-                        console.log('  -> ACCEPTED: Found ranking:', text, 'at position', centerX, centerY);
-                    } else {
-                        console.log('  -> REJECTED: Outside target area');
-                    }
-                }
-            } else {
-                console.log('  -> REJECTED: No bbox data');
+            rankNum = parseInt(ordinalMatch[1]);
+            matchType = 'ordinal';
+        }
+        
+        // Try alternative patterns for misread text (3], 2], 1|, etc.)
+        if (!rankNum) {
+            ordinalMatch = text.match(/(\d+)[\]\[|)(!]/);
+            if (ordinalMatch) {
+                rankNum = parseInt(ordinalMatch[1]);
+                matchType = 'alternative';
+                console.log('Found alternative pattern:', text, '-> treating as', rankNum);
             }
+        }
+        
+        // Try standalone numbers 1-18
+        if (!rankNum && /^\d{1,2}$/.test(text)) {
+            const num = parseInt(text);
+            if (num >= 1 && num <= 18) {
+                rankNum = num;
+                matchType = 'standalone';
+                console.log('Found standalone number in target area:', text);
+            }
+        }
+        
+        // If we found a valid ranking, add it
+        if (rankNum && rankNum >= 1 && rankNum <= 18) {
+            rankings.push({
+                rank: rankNum,
+                x: centerX,
+                y: centerY,
+                text: text
+            });
+            console.log(`  -> ACCEPTED (${matchType}): Rank ${rankNum} "${text}" at (${Math.round(centerX)}, ${Math.round(centerY)})`);
         }
     }
     
