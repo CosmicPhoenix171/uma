@@ -778,3 +778,23 @@ async function handleImageUpload(file) {
         return null;
     }
 }
+
+/**
+ * Handle image from URL (local asset) for testing/demo
+ */
+async function handleImageFromURL(url) {
+    try {
+        // Fetch the image as a blob
+        const res = await fetch(url, { cache: 'no-cache' });
+        if (!res.ok) throw new Error(`Failed to fetch ${url} (${res.status})`);
+        const blob = await res.blob();
+        // Reuse the same pipeline (Blob works with URL.createObjectURL)
+        console.log('Starting OCR for asset:', url);
+        const placements = await processImageWithOCR(blob);
+        return placements;
+    } catch (error) {
+        console.error('Image asset OCR error:', error);
+        showToast('Error processing test image: ' + (error.message || 'Unknown error'), 'error');
+        return null;
+    }
+}

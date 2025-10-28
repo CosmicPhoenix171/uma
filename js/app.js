@@ -117,6 +117,36 @@ function setupEventListeners() {
             }
         }
     });
+
+    // Run test images (dev helper)
+    const runTestsBtn = document.getElementById('btn-run-tests');
+    if (runTestsBtn) {
+        runTestsBtn.addEventListener('click', async () => {
+            try {
+                console.log('Running OCR on sample test images...');
+                const testUrls = [
+                    'assets/images/test1.jpg',
+                    'assets/images/test2.jpg',
+                    'assets/images/test3.jpg'
+                ];
+                const results = [];
+                for (const url of testUrls) {
+                    console.log('Processing', url);
+                    const placements = await handleImageFromURL(url);
+                    results.push({ url, placements });
+                    console.log('Result for', url, placements);
+                }
+                // Show last test in the OCR review panel for quick adjustment
+                if (results.length > 0 && results[results.length - 1].placements) {
+                    showOCRReview(results[results.length - 1].placements);
+                }
+                showToast('Test images processed. Check console for details.', 'success');
+            } catch (err) {
+                console.error('Error running test images:', err);
+                showToast('Error running test images: ' + (err.message || 'Unknown error'), 'error');
+            }
+        });
+    }
     
     // Manual entry - Add Race button
     document.getElementById('btn-add-race').addEventListener('click', () => {
