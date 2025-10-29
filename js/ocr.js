@@ -19,8 +19,8 @@ async function processImageWithOCR(file) {
         const regionPlacements = await processFocusedRankRegions(img);
         console.log('Region placements:', regionPlacements);
 
-        // If we got at least 5 confident results (not all 10), use them
-        const nonDefault = regionPlacements.filter(v => v !== 10).length;
+        // If we got at least 5 confident numeric results, use them
+        const nonDefault = regionPlacements.filter(v => typeof v === 'number' && v >= 1 && v <= 18).length;
         if (nonDefault >= 5) {
             hideLoading();
             return regionPlacements;
@@ -82,7 +82,7 @@ async function processFocusedRankRegions(img) {
     const regionW = Math.floor(width / cols);
     const regionH = Math.floor(gridHeight / rows);
 
-    const placements = new Array(15).fill(10);
+    const placements = new Array(15).fill('E');
 
     const baseCanvas = document.createElement('canvas');
     const ctx = baseCanvas.getContext('2d');
@@ -328,7 +328,7 @@ function parseOCRWithPositions(ocrData) {
     // Define the grid layout (5 columns x 3 rows)
     const cols = 5;
     const rows = 3;
-    const placements = new Array(15).fill(10);  // Default to mid-pack
+    const placements = new Array(15).fill('E');  // Default to error marker
     
     // Define the area where rankings appear (middle section of image)
     const rankingAreaTop = imageHeight * 0.45;
@@ -523,9 +523,9 @@ function parseOCRTextFallback(text, imageWidth, imageHeight) {
     // Take first 15 placements
     const finalPlacements = orderedPlacements.slice(0, 15);
     
-    // Fill remaining with defaults
+    // Fill remaining with error markers
     while (finalPlacements.length < 15) {
-        finalPlacements.push(10);
+        finalPlacements.push('E');
     }
     
     console.log('Final placements (fallback):', finalPlacements);
@@ -688,7 +688,7 @@ function extractNumbersFromRegionText(text) {
 function parseRegionResults(regionResults) {
     console.log('Parsing region results:', regionResults);
     
-    const placements = new Array(15).fill(10); // Default to mid-pack
+    const placements = new Array(15).fill('E'); // Default to error marker
     
     // Process each region result
     for (const result of regionResults) {
@@ -771,9 +771,9 @@ function parseOCRText(text) {
     // Girl 2 finished in orderedPlacements[1] place, etc.
     const finalPlacements = orderedPlacements.slice(0, 15);
     
-    // If we didn't find enough placements, fill with reasonable middle values
+    // If we didn't find enough placements, fill with error markers
     while (finalPlacements.length < 15) {
-        finalPlacements.push(10); // Default to mid-pack placement
+        finalPlacements.push('E');
     }
     
     console.log('Final placements array (15 girls):', finalPlacements);

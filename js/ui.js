@@ -61,6 +61,15 @@ function showOCRReview(placements) {
         select.id = `ocr-girl-${i}`;
         select.className = 'form-control';
         
+        // Add 'E' option for error/unknown first
+        const optE = document.createElement('option');
+        optE.value = 'E';
+        optE.textContent = 'E (error)';
+        if (placements[i - 1] === 'E') {
+            optE.selected = true;
+        }
+        select.appendChild(optE);
+
         // Add options 1-18
         for (let j = 1; j <= 18; j++) {
             const option = document.createElement('option');
@@ -113,7 +122,11 @@ function getOCRPlacements() {
     const placements = [];
     for (let i = 1; i <= 15; i++) {
         const value = document.getElementById(`ocr-girl-${i}`).value;
-        placements.push(parseInt(value));
+        if (value === 'E') {
+            placements.push('E');
+        } else {
+            placements.push(parseInt(value));
+        }
     }
     return placements;
 }
