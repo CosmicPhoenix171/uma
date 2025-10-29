@@ -124,9 +124,10 @@ async function processFocusedRankRegions(img) {
             ctx.drawImage(img, innerX, sy, innerW, sh, 0, 0, innerW, sh);
 
             // Try fewer, safer sub-bands and OCR modes
+            // Based on debug logs: successful detections at y=0.55, focus there first
             const bandCandidates = [
-                { y: 0.55, h: 0.40 }, // lower-middle
-                { y: 0.45, h: 0.45 }  // mid-to-lower
+                { y: 0.62, h: 0.30 }, // lower (where text often sits)
+                { y: 0.52, h: 0.35 }  // slightly higher fallback
             ];
             const scales = [2, 3]; // try 2x first, then 3x
             const psms = [8, 7];   // single word, then single line
@@ -189,6 +190,52 @@ async function processFocusedRankRegions(img) {
                             }
                         } catch (err) {
                             console.log(`    ⚠️ OCR error: ${err.message}`);
+                        }
+                    }
+                    
+                    // If still not found and this is the first scale, try inverted
+                    if (!found && scale === 2 && attemptNum === psms.length) {
+                        console.log(`  Trying color inversion...`);
+                        // Invert colors (white text on black becomes black on white)
+                        const invertCanvas = document.createElement('canvas');
+                        invertCanvas.width = workCanvas.width;
+                        invertCanvas.height = workCanvas.height;
+                        const ictx = invertCanvas.getContext('2d');
+                        ictx.filter = 'invert(1)';
+                        ictx.drawImage(workCanvas, 0, 0);
+                        
+                        const invertBlob = await new Promise((resolve, reject) => {
+                            invertCanvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to create inverted blob')), 'image/png');
+                        });
+                        
+                        for (const psm of psms) {
+                            if (found) break;
+                            attemptNum++;
+                            console.log(`  Attempt ${attemptNum}: inverted, psm=${psm}`);
+                            
+                            try {
+                                const result = await Tesseract.recognize(invertBlob, 'eng', {
+                                    psm,
+                                    tessedit_char_whitelist: '0123456789stndrdthSTNDRDTH[]()!|',
+                                    preserve_interword_spaces: '1',
+                                    logger: m => { /* quiet */ }
+                                });
+
+                                const raw = (result.data.text || '').trim();
+                                const confidence = result.data.confidence || 0;
+                                console.log(`    → OCR: "${raw}" (confidence: ${confidence.toFixed(1)}%)`);
+                                
+                                const detected = detectRankingFromText(raw);
+                                if (detected) {
+                                    placements[index] = detected;
+                                    console.log(`    ✅ ACCEPTED: Rank ${detected} (inverted)`);
+                                    found = true;
+                                } else {
+                                    console.log(`    ❌ Rejected: no valid rank pattern`);
+                                }
+                            } catch (err) {
+                                console.log(`    ⚠️ OCR error: ${err.message}`);
+                            }
                         }
                     }
                 }
