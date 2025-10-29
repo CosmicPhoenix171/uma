@@ -124,10 +124,10 @@ async function processFocusedRankRegions(img) {
             ctx.drawImage(img, innerX, sy, innerW, sh, 0, 0, innerW, sh);
 
             // Try fewer, safer sub-bands and OCR modes
-            // Based on debug logs: successful detections at y=0.55, focus there first
+            // Based on debug logs: successful detections at y=0.55, center around that
             const bandCandidates = [
-                { y: 0.62, h: 0.30 }, // lower (where text often sits)
-                { y: 0.52, h: 0.35 }  // slightly higher fallback
+                { y: 0.55, h: 0.40 }, // primary band (where successful detections occurred)
+                { y: 0.50, h: 0.45 }  // slightly higher fallback
             ];
             const scales = [2, 3]; // try 2x first, then 3x
             const psms = [8, 7];   // single word, then single line
@@ -193,8 +193,8 @@ async function processFocusedRankRegions(img) {
                         }
                     }
                     
-                    // If still not found and this is the first scale, try inverted
-                    if (!found && scale === 2 && attemptNum === psms.length) {
+                    // If still not found and this is the first scale (2x), try inverted after both PSMs
+                    if (!found && scale === 2) {
                         console.log(`  Trying color inversion...`);
                         // Invert colors (white text on black becomes black on white)
                         const invertCanvas = document.createElement('canvas');
@@ -276,8 +276,8 @@ function detectRankingFromText(text) {
 
 function clampRank(n) {
     if (isNaN(n)) return null;
-    if (n < 1) return 1;
-    if (n > 18) return 18;
+    // Reject numbers outside valid range completely (don't clamp)
+    if (n < 1 || n > 18) return null;
     return n;
 }
 
