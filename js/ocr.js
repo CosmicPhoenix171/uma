@@ -139,6 +139,7 @@ async function processFocusedRankRegions(img) {
             // Try multiple scales and PSM modes on the red box area
             const scales = [2, 3]; // try 2x first, then 3x
             const psms = [8, 7];   // single word, then single line
+            const totalAttempts = scales.length * psms.length; // 4 attempts total
 
             // Collect ALL valid detections from all attempts
             const detections = [];
@@ -182,6 +183,13 @@ async function processFocusedRankRegions(img) {
 
                 for (const psm of psms) {
                     attemptNum++;
+                    
+                    // Update progress to show current attempt progress
+                    const regionBaseProgress = (index / totalRegions) * 100;
+                    const attemptProgress = (attemptNum / totalAttempts) * (100 / totalRegions);
+                    const currentProgress = Math.round(regionBaseProgress + attemptProgress);
+                    updateOCRProgress(currentProgress, `Region ${index + 1}/${totalRegions} - Attempt ${attemptNum}/${totalAttempts}...`);
+                    
                     console.log(`  Attempt ${attemptNum}: scale=${scale}x (${workCanvas.width}x${workCanvas.height}), psm=${psm}`);
                     
                     try {
