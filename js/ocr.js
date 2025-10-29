@@ -105,9 +105,16 @@ async function processFocusedRankRegions(img) {
             const xMargin = Math.floor(sw * 0.15); // keep center 70%
             const innerX = sx + xMargin;
             const innerW = sw - xMargin * 2;
+            
+            // Guard: ensure minimum crop dimensions
+            if (innerW < 20 || sh < 20) {
+                console.log(`Region ${index + 1}: skipped (inner cell too small: ${innerW}x${sh})`);
+                continue;
+            }
+            
             baseCanvas.width = innerW;
             baseCanvas.height = sh;
-            ctx.clearRect(0, 0, sw, sh);
+            ctx.clearRect(0, 0, innerW, sh);
             ctx.drawImage(img, innerX, sy, innerW, sh, 0, 0, innerW, sh);
 
             // Try multiple sub-bands and OCR modes per region to improve robustness
@@ -124,8 +131,13 @@ async function processFocusedRankRegions(img) {
 
             for (const band of bandCandidates) {
                 if (found) break;
-                const bandY = Math.max(0, Math.floor(sh * band.y));
-                const bandH = Math.max(10, Math.floor(sh * band.h));
+                const bandY = Math.max(0, Math.min(sh - 20, Math.floor(sh * band.y)));
+                const bandH = Math.max(20, Math.min(sh - bandY, Math.floor(sh * band.h)));
+                
+                // Skip if band is too small after clamping
+                if (bandH < 20 || innerW < 20) {
+                    continue;
+                }
 
                 for (const scale of scales) {
                     if (found) break;
