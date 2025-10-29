@@ -106,15 +106,14 @@ async function processFocusedRankRegions(img) {
             // Guard: ensure minimum crop dimensions
             const MIN_DIM = 40;
             
-            // Crop to RED BOX area: bottom 28% of each cell (where ranking text appears)
-            // Horizontal: center 80% to avoid edge noise
-            const xMargin = Math.floor(sw * 0.10);
-            const redBoxX = sx + xMargin;
-            const redBoxW = sw - xMargin * 2;
+            // Crop to RED BOX area: BOTTOM-RIGHT corner where ranking text appears
+            // Horizontal: right 60% of cell (rankings are right-aligned in portraits)
+            const redBoxX = sx + Math.floor(sw * 0.40);  // start at 40% from left
+            const redBoxW = Math.floor(sw * 0.60);       // width is 60% of cell
             
-            // Vertical: bottom 28% of cell (matching red box position in image)
-            const redBoxY = sy + Math.floor(sh * 0.72); // start at 72% down the cell
-            const redBoxH = Math.floor(sh * 0.28);      // height is 28% of cell
+            // Vertical: bottom 30% of cell (matching red box position in image)
+            const redBoxY = sy + Math.floor(sh * 0.70);  // start at 70% down the cell
+            const redBoxH = Math.floor(sh * 0.30);       // height is 30% of cell
             
             if (redBoxW < MIN_DIM || redBoxH < MIN_DIM) {
                 console.log(`  ❌ Skipped: red box area too small (${redBoxW}x${redBoxH}, need ${MIN_DIM}x${MIN_DIM})`);
