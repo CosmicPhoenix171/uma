@@ -132,11 +132,11 @@ async function processFocusedRankRegions(img) {
             const scales = [2, 3]; // try 2x first, then 3x
             const psms = [8, 7];   // single word, then single line
 
-            let found = false;
+            // Collect ALL valid detections from all attempts
+            const detections = [];
             let attemptNum = 0;
 
             for (const scale of scales) {
-                if (found) break;
                 
                 // Upscale red box area
                 workCanvas.width = redBoxW * scale;
@@ -154,7 +154,6 @@ async function processFocusedRankRegions(img) {
                 });
 
                 for (const psm of psms) {
-                    if (found) break;
                     attemptNum++;
                     console.log(`  Attempt ${attemptNum}: scale=${scale}x (${workCanvas.width}x${workCanvas.height}), psm=${psm}`);
                     
@@ -172,9 +171,8 @@ async function processFocusedRankRegions(img) {
                         
                         const detected = detectRankingFromText(raw);
                         if (detected) {
-                            placements[index] = detected;
-                            console.log(`    ✅ ACCEPTED: Rank ${detected}`);
-                            found = true;
+                            detections.push(detected);
+                            console.log(`    ✅ Valid: Rank ${detected}`);
                         } else {
                             console.log(`    ❌ Rejected: no valid rank pattern`);
                         }
@@ -183,8 +181,8 @@ async function processFocusedRankRegions(img) {
                     }
                 }
                 
-                // If still not found and this is the first scale (2x), try inverted after both PSMs
-                if (!found && scale === 2) {
+                // Try inverted on first scale
+                if (scale === 2) {
                     console.log(`  Trying color inversion...`);
                     // Invert colors (yellow on dark becomes dark on light)
                     const invertCanvas = document.createElement('canvas');
@@ -199,7 +197,6 @@ async function processFocusedRankRegions(img) {
                     });
                     
                     for (const psm of psms) {
-                        if (found) break;
                         attemptNum++;
                         console.log(`  Attempt ${attemptNum}: inverted, psm=${psm}`);
                         
@@ -217,9 +214,8 @@ async function processFocusedRankRegions(img) {
                             
                             const detected = detectRankingFromText(raw);
                             if (detected) {
-                                placements[index] = detected;
-                                console.log(`    ✅ ACCEPTED: Rank ${detected} (inverted)`);
-                                found = true;
+                                detections.push(detected);
+                                console.log(`    ✅ Valid: Rank ${detected} (inverted)`);
                             } else {
                                 console.log(`    ❌ Rejected: no valid rank pattern`);
                             }
@@ -230,7 +226,26 @@ async function processFocusedRankRegions(img) {
                 }
             }
 
-            if (!found) {
+            // Choose the most frequently detected number
+            if (detections.length > 0) {
+                const frequency = {};
+                detections.forEach(num => {
+                    frequency[num] = (frequency[num] || 0) + 1;
+                });
+                
+                // Find the number with highest count
+                let maxCount = 0;
+                let mostFrequent = detections[0];
+                for (const [num, count] of Object.entries(frequency)) {
+                    if (count > maxCount) {
+                        maxCount = count;
+                        mostFrequent = parseInt(num);
+                    }
+                }
+                
+                placements[index] = mostFrequent;
+                console.log(`  ✅ FINAL: Rank ${mostFrequent} (detected ${maxCount}/${detections.length} times)`);
+            } else {
                 console.log(`  ❌ Final: no rank found after ${attemptNum} attempts`);
             }
         }
