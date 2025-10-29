@@ -103,73 +103,109 @@ async function processFocusedRankRegions(img) {
             console.log(`\n=== Region ${index + 1} (row ${r}, col ${c}) ===`);
             console.log(`  Cell bounds: x=${sx}, y=${sy}, w=${sw}, h=${sh}`);
 
-            // Crop from source
-            // Use an inner window centered horizontally to avoid side noise
-            const xMargin = Math.floor(sw * 0.10); // keep center 80%
-            const innerX = sx + xMargin;
-            const innerW = sw - xMargin * 2;
-            
-            // Guard: ensure minimum crop dimensions (raised to avoid Tesseract internal scaling issues)
+            // Guard: ensure minimum crop dimensions
             const MIN_DIM = 40;
-            if (innerW < MIN_DIM || sh < MIN_DIM) {
-                console.log(`  ❌ Skipped: inner cell too small (${innerW}x${sh}, need ${MIN_DIM}x${MIN_DIM})`);
+            
+            // Crop to RED BOX area: bottom 28% of each cell (where ranking text appears)
+            // Horizontal: center 80% to avoid edge noise
+            const xMargin = Math.floor(sw * 0.10);
+            const redBoxX = sx + xMargin;
+            const redBoxW = sw - xMargin * 2;
+            
+            // Vertical: bottom 28% of cell (matching red box position in image)
+            const redBoxY = sy + Math.floor(sh * 0.72); // start at 72% down the cell
+            const redBoxH = Math.floor(sh * 0.28);      // height is 28% of cell
+            
+            if (redBoxW < MIN_DIM || redBoxH < MIN_DIM) {
+                console.log(`  ❌ Skipped: red box area too small (${redBoxW}x${redBoxH}, need ${MIN_DIM}x${MIN_DIM})`);
                 continue;
             }
             
-            console.log(`  Inner crop: x=${innerX}, w=${innerW}, h=${sh}`);
+            console.log(`  Red box crop: x=${redBoxX}, y=${redBoxY}, w=${redBoxW}, h=${redBoxH}`);
             
-            baseCanvas.width = innerW;
-            baseCanvas.height = sh;
-            ctx.clearRect(0, 0, innerW, sh);
-            ctx.drawImage(img, innerX, sy, innerW, sh, 0, 0, innerW, sh);
+            // Crop directly to red box area only
+            baseCanvas.width = redBoxW;
+            baseCanvas.height = redBoxH;
+            ctx.clearRect(0, 0, redBoxW, redBoxH);
+            ctx.drawImage(img, redBoxX, redBoxY, redBoxW, redBoxH, 0, 0, redBoxW, redBoxH);
 
-            // Try fewer, safer sub-bands and OCR modes
-            // Based on debug logs: successful detections at y=0.55, center around that
-            const bandCandidates = [
-                { y: 0.55, h: 0.40 }, // primary band (where successful detections occurred)
-                { y: 0.50, h: 0.45 }  // slightly higher fallback
-            ];
+            // Try multiple scales and PSM modes on the red box area
             const scales = [2, 3]; // try 2x first, then 3x
             const psms = [8, 7];   // single word, then single line
 
             let found = false;
             let attemptNum = 0;
 
-            for (const band of bandCandidates) {
+            for (const scale of scales) {
                 if (found) break;
-                const bandY = Math.max(0, Math.min(sh - MIN_DIM, Math.floor(sh * band.y)));
-                const bandH = Math.max(MIN_DIM, Math.min(sh - bandY, Math.floor(sh * band.h)));
                 
-                // Skip if band is too small after clamping
-                if (bandH < MIN_DIM || innerW < MIN_DIM) {
-                    console.log(`  ⚠️ Band y=${band.y}/h=${band.h} → actual ${bandY}/${bandH}px: too small, skipped`);
-                    continue;
-                }
+                // Upscale red box area
+                workCanvas.width = redBoxW * scale;
+                workCanvas.height = redBoxH * scale;
+                wctx.imageSmoothingEnabled = true;
+                wctx.clearRect(0, 0, workCanvas.width, workCanvas.height);
+                // Mild enhancement
+                wctx.filter = 'contrast(140%) brightness(110%)';
+                wctx.drawImage(baseCanvas, 0, 0, redBoxW, redBoxH, 0, 0, workCanvas.width, workCanvas.height);
+                wctx.filter = 'none';
 
-                for (const scale of scales) {
+                // Convert to blob
+                const blob = await new Promise((resolve, reject) => {
+                    workCanvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to create region blob')), 'image/png');
+                });
+
+                for (const psm of psms) {
                     if (found) break;
-                    // Upscale band
-                    workCanvas.width = innerW * scale;
-                    workCanvas.height = bandH * scale;
-                    wctx.imageSmoothingEnabled = true;
-                    wctx.clearRect(0, 0, workCanvas.width, workCanvas.height);
-                    // mild enhancement
-                    wctx.filter = 'contrast(140%) brightness(110%)';
-                    wctx.drawImage(baseCanvas, 0, bandY, innerW, bandH, 0, 0, workCanvas.width, workCanvas.height);
-                    wctx.filter = 'none';
+                    attemptNum++;
+                    console.log(`  Attempt ${attemptNum}: scale=${scale}x (${workCanvas.width}x${workCanvas.height}), psm=${psm}`);
+                    
+                    try {
+                        const result = await Tesseract.recognize(blob, 'eng', {
+                            psm,
+                            tessedit_char_whitelist: '0123456789stndrdthSTNDRDTH[]()!|',
+                            preserve_interword_spaces: '1',
+                            logger: m => { /* quiet */ }
+                        });
 
-                    // Convert to blob
-                    const blob = await new Promise((resolve, reject) => {
-                        workCanvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to create region blob')), 'image/png');
+                        const raw = (result.data.text || '').trim();
+                        const confidence = result.data.confidence || 0;
+                        console.log(`    → OCR: "${raw}" (confidence: ${confidence.toFixed(1)}%)`);
+                        
+                        const detected = detectRankingFromText(raw);
+                        if (detected) {
+                            placements[index] = detected;
+                            console.log(`    ✅ ACCEPTED: Rank ${detected}`);
+                            found = true;
+                        } else {
+                            console.log(`    ❌ Rejected: no valid rank pattern`);
+                        }
+                    } catch (err) {
+                        console.log(`    ⚠️ OCR error: ${err.message}`);
+                    }
+                }
+                
+                // If still not found and this is the first scale (2x), try inverted after both PSMs
+                if (!found && scale === 2) {
+                    console.log(`  Trying color inversion...`);
+                    // Invert colors (yellow on dark becomes dark on light)
+                    const invertCanvas = document.createElement('canvas');
+                    invertCanvas.width = workCanvas.width;
+                    invertCanvas.height = workCanvas.height;
+                    const ictx = invertCanvas.getContext('2d');
+                    ictx.filter = 'invert(1)';
+                    ictx.drawImage(workCanvas, 0, 0);
+                    
+                    const invertBlob = await new Promise((resolve, reject) => {
+                        invertCanvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to create inverted blob')), 'image/png');
                     });
-
+                    
                     for (const psm of psms) {
                         if (found) break;
                         attemptNum++;
-                        console.log(`  Attempt ${attemptNum}: band y=${band.y}/h=${band.h} (${bandY}-${bandY+bandH}px), scale=${scale}x (${workCanvas.width}x${workCanvas.height}), psm=${psm}`);
+                        console.log(`  Attempt ${attemptNum}: inverted, psm=${psm}`);
                         
                         try {
-                            const result = await Tesseract.recognize(blob, 'eng', {
+                            const result = await Tesseract.recognize(invertBlob, 'eng', {
                                 psm,
                                 tessedit_char_whitelist: '0123456789stndrdthSTNDRDTH[]()!|',
                                 preserve_interword_spaces: '1',
@@ -183,59 +219,13 @@ async function processFocusedRankRegions(img) {
                             const detected = detectRankingFromText(raw);
                             if (detected) {
                                 placements[index] = detected;
-                                console.log(`    ✅ ACCEPTED: Rank ${detected}`);
+                                console.log(`    ✅ ACCEPTED: Rank ${detected} (inverted)`);
                                 found = true;
                             } else {
                                 console.log(`    ❌ Rejected: no valid rank pattern`);
                             }
                         } catch (err) {
                             console.log(`    ⚠️ OCR error: ${err.message}`);
-                        }
-                    }
-                    
-                    // If still not found and this is the first scale (2x), try inverted after both PSMs
-                    if (!found && scale === 2) {
-                        console.log(`  Trying color inversion...`);
-                        // Invert colors (white text on black becomes black on white)
-                        const invertCanvas = document.createElement('canvas');
-                        invertCanvas.width = workCanvas.width;
-                        invertCanvas.height = workCanvas.height;
-                        const ictx = invertCanvas.getContext('2d');
-                        ictx.filter = 'invert(1)';
-                        ictx.drawImage(workCanvas, 0, 0);
-                        
-                        const invertBlob = await new Promise((resolve, reject) => {
-                            invertCanvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to create inverted blob')), 'image/png');
-                        });
-                        
-                        for (const psm of psms) {
-                            if (found) break;
-                            attemptNum++;
-                            console.log(`  Attempt ${attemptNum}: inverted, psm=${psm}`);
-                            
-                            try {
-                                const result = await Tesseract.recognize(invertBlob, 'eng', {
-                                    psm,
-                                    tessedit_char_whitelist: '0123456789stndrdthSTNDRDTH[]()!|',
-                                    preserve_interword_spaces: '1',
-                                    logger: m => { /* quiet */ }
-                                });
-
-                                const raw = (result.data.text || '').trim();
-                                const confidence = result.data.confidence || 0;
-                                console.log(`    → OCR: "${raw}" (confidence: ${confidence.toFixed(1)}%)`);
-                                
-                                const detected = detectRankingFromText(raw);
-                                if (detected) {
-                                    placements[index] = detected;
-                                    console.log(`    ✅ ACCEPTED: Rank ${detected} (inverted)`);
-                                    found = true;
-                                } else {
-                                    console.log(`    ❌ Rejected: no valid rank pattern`);
-                                }
-                            } catch (err) {
-                                console.log(`    ⚠️ OCR error: ${err.message}`);
-                            }
                         }
                     }
                 }
