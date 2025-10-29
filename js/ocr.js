@@ -102,12 +102,13 @@ async function processFocusedRankRegions(img) {
 
             // Crop from source
             // Use an inner window centered horizontally to avoid side noise
-            const xMargin = Math.floor(sw * 0.15); // keep center 70%
+            const xMargin = Math.floor(sw * 0.10); // keep center 80%
             const innerX = sx + xMargin;
             const innerW = sw - xMargin * 2;
             
-            // Guard: ensure minimum crop dimensions
-            if (innerW < 20 || sh < 20) {
+            // Guard: ensure minimum crop dimensions (raised to avoid Tesseract internal scaling issues)
+            const MIN_DIM = 40;
+            if (innerW < MIN_DIM || sh < MIN_DIM) {
                 console.log(`Region ${index + 1}: skipped (inner cell too small: ${innerW}x${sh})`);
                 continue;
             }
@@ -117,25 +118,23 @@ async function processFocusedRankRegions(img) {
             ctx.clearRect(0, 0, innerW, sh);
             ctx.drawImage(img, innerX, sy, innerW, sh, 0, 0, innerW, sh);
 
-            // Try multiple sub-bands and OCR modes per region to improve robustness
+            // Try fewer, safer sub-bands and OCR modes
             const bandCandidates = [
-                { y: 0.62, h: 0.32 }, // lower band (often where label sits)
-                { y: 0.55, h: 0.35 }, // lower-middle
-                { y: 0.50, h: 0.35 }, // slightly higher
-                { y: 0.47, h: 0.30 }  // mid band
+                { y: 0.55, h: 0.40 }, // lower-middle
+                { y: 0.45, h: 0.45 }  // mid-to-lower
             ];
             const scales = [2, 3]; // try 2x first, then 3x
-            const psms = [8, 7, 10];   // single word, then single line, then single char
+            const psms = [8, 7];   // single word, then single line
 
             let found = false;
 
             for (const band of bandCandidates) {
                 if (found) break;
-                const bandY = Math.max(0, Math.min(sh - 20, Math.floor(sh * band.y)));
-                const bandH = Math.max(20, Math.min(sh - bandY, Math.floor(sh * band.h)));
+                const bandY = Math.max(0, Math.min(sh - MIN_DIM, Math.floor(sh * band.y)));
+                const bandH = Math.max(MIN_DIM, Math.min(sh - bandY, Math.floor(sh * band.h)));
                 
                 // Skip if band is too small after clamping
-                if (bandH < 20 || innerW < 20) {
+                if (bandH < MIN_DIM || innerW < MIN_DIM) {
                     continue;
                 }
 
