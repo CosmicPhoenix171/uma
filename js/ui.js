@@ -223,6 +223,8 @@ function showToast(message, type = 'info') {
  */
 function showLoading() {
     document.getElementById('loading').classList.remove('hidden');
+    // Reset progress bar when showing
+    updateOCRProgress(0, 'Starting OCR...');
 }
 
 /**
@@ -230,6 +232,19 @@ function showLoading() {
  */
 function hideLoading() {
     document.getElementById('loading').classList.add('hidden');
+}
+
+/**
+ * Update OCR progress in the loading screen
+ */
+function updateOCRProgress(percentage, message) {
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const loadingText = document.getElementById('loading-text');
+    
+    if (progressBar) progressBar.style.width = percentage + '%';
+    if (progressText) progressText.textContent = percentage + '%';
+    if (loadingText && message) loadingText.textContent = message;
 }
 
 /**

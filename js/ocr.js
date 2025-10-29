@@ -1,26 +1,12 @@
 // OCR Module - Handles image processing with Tesseract.js
 
 /**
- * Update OCR progress in the loading screen
- */
-function updateOCRProgress(percentage, message) {
-    const progressBar = document.getElementById('progress-bar');
-    const progressText = document.getElementById('progress-text');
-    const loadingText = document.getElementById('loading-text');
-    
-    if (progressBar) progressBar.style.width = percentage + '%';
-    if (progressText) progressText.textContent = percentage + '%';
-    if (loadingText && message) loadingText.textContent = message;
-}
-
-/**
  * Process image with OCR - Simplified full-image approach with smart parsing
  */
 async function processImageWithOCR(file) {
     try {
         // Show loading indicator
         showLoading();
-        updateOCRProgress(0, 'Starting OCR...');
 
         if (typeof Tesseract === 'undefined') {
             throw new Error('Tesseract.js library not loaded');
