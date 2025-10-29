@@ -1,12 +1,26 @@
 // OCR Module - Handles image processing with Tesseract.js
 
 /**
+ * Update OCR progress in the loading screen
+ */
+function updateOCRProgress(percentage, message) {
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const loadingText = document.getElementById('loading-text');
+    
+    if (progressBar) progressBar.style.width = percentage + '%';
+    if (progressText) progressText.textContent = percentage + '%';
+    if (loadingText && message) loadingText.textContent = message;
+}
+
+/**
  * Process image with OCR - Simplified full-image approach with smart parsing
  */
 async function processImageWithOCR(file) {
     try {
         // Show loading indicator
         showLoading();
+        updateOCRProgress(0, 'Starting OCR...');
 
         if (typeof Tesseract === 'undefined') {
             throw new Error('Tesseract.js library not loaded');
@@ -38,7 +52,9 @@ async function processImageWithOCR(file) {
                 preserve_interword_spaces: '1',
                 logger: m => {
                     if (m.status === 'recognizing text') {
-                        console.log('OCR Progress:', Math.round(m.progress * 100) + '%');
+                        const progress = Math.round(m.progress * 100);
+                        console.log('OCR Progress:', progress + '%');
+                        updateOCRProgress(progress, 'Full-image OCR: ' + progress + '%');
                     }
                 }
             }
@@ -69,6 +85,8 @@ async function processImageWithOCR(file) {
  */
 async function processFocusedRankRegions(img) {
     console.log('Running focused region OCR...');
+    updateOCRProgress(0, 'Scanning 15 regions...');
+    
     const width = img.width;
     const height = img.height;
 
@@ -79,10 +97,11 @@ async function processFocusedRankRegions(img) {
 
     const cols = 5;
     const rows = 3;
+    const totalRegions = 15;
     const regionW = Math.floor(width / cols);
     const regionH = Math.floor(gridHeight / rows);
 
-    const placements = new Array(15).fill('E');
+    const placements = new Array(totalRegions).fill('E');
 
     const baseCanvas = document.createElement('canvas');
     const ctx = baseCanvas.getContext('2d');
@@ -95,6 +114,9 @@ async function processFocusedRankRegions(img) {
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
             const index = r * cols + c;
+            const regionProgress = Math.round((index / totalRegions) * 100);
+            updateOCRProgress(regionProgress, `Scanning region ${index + 1}/${totalRegions}...`);
+            
             const sx = c * regionW;
             const sy = gridTop + r * regionH;
             const sw = regionW;

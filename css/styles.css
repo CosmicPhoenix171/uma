@@ -403,6 +403,36 @@ header h1 {
     100% { transform: rotate(360deg); }
 }
 
+.progress-bar-container {
+    width: 300px;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #4CAF50 0%, #45a049 100%);
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 10px;
+}
+
+.progress-text {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+#loading-text {
+    font-size: 1.1rem;
+    margin: 0;
+}
+
 /* Toast Notification */
 .toast {
     position: fixed;
