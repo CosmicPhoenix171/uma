@@ -87,9 +87,10 @@ async function processFocusedRankRegions(img) {
     const baseCanvas = document.createElement('canvas');
     const ctx = baseCanvas.getContext('2d');
 
-    const scale = 2; // upscale for better OCR
     const workCanvas = document.createElement('canvas');
     const wctx = workCanvas.getContext('2d');
+
+    console.log(`Grid Y band: top=${gridTop}, bottom=${gridBottom}, regionW=${regionW}, regionH=${regionH}`);
 
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
@@ -105,43 +106,61 @@ async function processFocusedRankRegions(img) {
             ctx.clearRect(0, 0, sw, sh);
             ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
 
-            // Slightly tighten to the lower-middle band of each region
-            const bandY = Math.floor(sh * 0.55);
-            const bandH = Math.floor(sh * 0.35);
+            // Try multiple sub-bands and OCR modes per region to improve robustness
+            const bandCandidates = [
+                { y: 0.55, h: 0.35 }, // lower-middle
+                { y: 0.50, h: 0.35 }, // slightly higher
+                { y: 0.47, h: 0.30 }  // mid band
+            ];
+            const scales = [2, 3]; // try 2x first, then 3x
+            const psms = [8, 7];   // single word, then single line
 
-            // Upscale band
-            workCanvas.width = sw * scale;
-            workCanvas.height = bandH * scale;
-            wctx.imageSmoothingEnabled = true;
-            wctx.clearRect(0, 0, workCanvas.width, workCanvas.height);
-            wctx.drawImage(baseCanvas, 0, bandY, sw, bandH, 0, 0, workCanvas.width, workCanvas.height);
+            let found = false;
 
-            // Convert to blob
-            const blob = await new Promise((resolve, reject) => {
-                workCanvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to create region blob')), 'image/png');
-            });
+            for (const band of bandCandidates) {
+                if (found) break;
+                const bandY = Math.max(0, Math.floor(sh * band.y));
+                const bandH = Math.max(10, Math.floor(sh * band.h));
 
-            try {
-                const result = await Tesseract.recognize(blob, 'eng', {
-                    psm: 8, // single word
-                    tessedit_char_whitelist: '0123456789stndrdthSTNDRDTH[]()!|',
-                    logger: m => {
-                        if (m.status === 'recognizing text') {
-                            // compact log
+                for (const scale of scales) {
+                    if (found) break;
+                    // Upscale band
+                    workCanvas.width = sw * scale;
+                    workCanvas.height = bandH * scale;
+                    wctx.imageSmoothingEnabled = true;
+                    wctx.clearRect(0, 0, workCanvas.width, workCanvas.height);
+                    wctx.drawImage(baseCanvas, 0, bandY, sw, bandH, 0, 0, workCanvas.width, workCanvas.height);
+
+                    // Convert to blob
+                    const blob = await new Promise((resolve, reject) => {
+                        workCanvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to create region blob')), 'image/png');
+                    });
+
+                    for (const psm of psms) {
+                        if (found) break;
+                        try {
+                            const result = await Tesseract.recognize(blob, 'eng', {
+                                psm,
+                                tessedit_char_whitelist: '0123456789stndrdthSTNDRDTH[]()!|',
+                                logger: m => { /* quiet */ }
+                            });
+
+                            const raw = (result.data.text || '').trim();
+                            const detected = detectRankingFromText(raw);
+                            if (detected) {
+                                placements[index] = detected;
+                                console.log(`Region ${index + 1}: "${raw}" -> ${detected} (band=${band.y}/${band.h}, scale=${scale}, psm=${psm})`);
+                                found = true;
+                            }
+                        } catch (err) {
+                            // try next psm/scale/band
                         }
                     }
-                });
-
-                const raw = (result.data.text || '').trim();
-                const detected = detectRankingFromText(raw);
-                if (detected) {
-                    placements[index] = detected;
-                    console.log(`Region ${index + 1}: "${raw}" -> ${detected}`);
-                } else {
-                    console.log(`Region ${index + 1}: "${raw}" -> no rank`);
                 }
-            } catch (err) {
-                console.warn(`Region ${index + 1} OCR failed:`, err.message);
+            }
+
+            if (!found) {
+                console.log(`Region ${index + 1}: no rank (tried ${bandCandidates.length} bands, ${scales.length} scales, ${psms.length} psms)`);
             }
         }
     }
