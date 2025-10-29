@@ -100,6 +100,9 @@ async function processFocusedRankRegions(img) {
             const sw = regionW;
             const sh = regionH;
 
+            console.log(`\n=== Region ${index + 1} (row ${r}, col ${c}) ===`);
+            console.log(`  Cell bounds: x=${sx}, y=${sy}, w=${sw}, h=${sh}`);
+
             // Crop from source
             // Use an inner window centered horizontally to avoid side noise
             const xMargin = Math.floor(sw * 0.10); // keep center 80%
@@ -109,9 +112,11 @@ async function processFocusedRankRegions(img) {
             // Guard: ensure minimum crop dimensions (raised to avoid Tesseract internal scaling issues)
             const MIN_DIM = 40;
             if (innerW < MIN_DIM || sh < MIN_DIM) {
-                console.log(`Region ${index + 1}: skipped (inner cell too small: ${innerW}x${sh})`);
+                console.log(`  ❌ Skipped: inner cell too small (${innerW}x${sh}, need ${MIN_DIM}x${MIN_DIM})`);
                 continue;
             }
+            
+            console.log(`  Inner crop: x=${innerX}, w=${innerW}, h=${sh}`);
             
             baseCanvas.width = innerW;
             baseCanvas.height = sh;
@@ -127,6 +132,7 @@ async function processFocusedRankRegions(img) {
             const psms = [8, 7];   // single word, then single line
 
             let found = false;
+            let attemptNum = 0;
 
             for (const band of bandCandidates) {
                 if (found) break;
@@ -135,6 +141,7 @@ async function processFocusedRankRegions(img) {
                 
                 // Skip if band is too small after clamping
                 if (bandH < MIN_DIM || innerW < MIN_DIM) {
+                    console.log(`  ⚠️ Band y=${band.y}/h=${band.h} → actual ${bandY}/${bandH}px: too small, skipped`);
                     continue;
                 }
 
@@ -157,6 +164,9 @@ async function processFocusedRankRegions(img) {
 
                     for (const psm of psms) {
                         if (found) break;
+                        attemptNum++;
+                        console.log(`  Attempt ${attemptNum}: band y=${band.y}/h=${band.h} (${bandY}-${bandY+bandH}px), scale=${scale}x (${workCanvas.width}x${workCanvas.height}), psm=${psm}`);
+                        
                         try {
                             const result = await Tesseract.recognize(blob, 'eng', {
                                 psm,
@@ -166,26 +176,32 @@ async function processFocusedRankRegions(img) {
                             });
 
                             const raw = (result.data.text || '').trim();
+                            const confidence = result.data.confidence || 0;
+                            console.log(`    → OCR: "${raw}" (confidence: ${confidence.toFixed(1)}%)`);
+                            
                             const detected = detectRankingFromText(raw);
                             if (detected) {
                                 placements[index] = detected;
-                                console.log(`Region ${index + 1}: "${raw}" -> ${detected} (band=${band.y}/${band.h}, scale=${scale}, psm=${psm})`);
+                                console.log(`    ✅ ACCEPTED: Rank ${detected}`);
                                 found = true;
+                            } else {
+                                console.log(`    ❌ Rejected: no valid rank pattern`);
                             }
                         } catch (err) {
-                            // try next psm/scale/band
+                            console.log(`    ⚠️ OCR error: ${err.message}`);
                         }
                     }
                 }
             }
 
             if (!found) {
-                console.log(`Region ${index + 1}: no rank (tried ${bandCandidates.length} bands, ${scales.length} scales, ${psms.length} psms)`);
+                console.log(`  ❌ Final: no rank found after ${attemptNum} attempts`);
             }
         }
     }
 
     console.log('Focused region OCR placements:', placements);
+    console.log(`Summary: ${placements.filter(v => typeof v === 'number').length} numeric detections, ${placements.filter(v => v === 'E').length} errors`);
     return placements;
 }
 
