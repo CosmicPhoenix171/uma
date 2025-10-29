@@ -106,14 +106,14 @@ async function processFocusedRankRegions(img) {
             // Guard: ensure minimum crop dimensions
             const MIN_DIM = 40;
             
-            // Crop to RED BOX area: BOTTOM-RIGHT corner where ranking text appears
-            // Horizontal: right 60% of cell (rankings are right-aligned in portraits)
-            const redBoxX = sx + Math.floor(sw * 0.40);  // start at 40% from left
-            const redBoxW = Math.floor(sw * 0.60);       // width is 60% of cell
+            // Crop to SMALLER, MORE PRECISE area: exact ranking text location
+            // Horizontal: right 50% of cell (rankings are right-side)
+            const redBoxX = sx + Math.floor(sw * 0.50);  // start at 50% from left
+            const redBoxW = Math.floor(sw * 0.50);       // width is 50% of cell
             
-            // Vertical: bottom 30% of cell (matching red box position in image)
-            const redBoxY = sy + Math.floor(sh * 0.70);  // start at 70% down the cell
-            const redBoxH = Math.floor(sh * 0.30);       // height is 30% of cell
+            // Vertical: bottom 25% of cell (very tight around text)
+            const redBoxY = sy + Math.floor(sh * 0.75);  // start at 75% down the cell
+            const redBoxH = Math.floor(sh * 0.25);       // height is 25% of cell
             
             if (redBoxW < MIN_DIM || redBoxH < MIN_DIM) {
                 console.log(`  ❌ Skipped: red box area too small (${redBoxW}x${redBoxH}, need ${MIN_DIM}x${MIN_DIM})`);
@@ -143,10 +143,29 @@ async function processFocusedRankRegions(img) {
                 workCanvas.height = redBoxH * scale;
                 wctx.imageSmoothingEnabled = true;
                 wctx.clearRect(0, 0, workCanvas.width, workCanvas.height);
-                // Mild enhancement
-                wctx.filter = 'contrast(140%) brightness(110%)';
+                // Enhanced contrast to make yellow text pop
+                wctx.filter = 'contrast(180%) brightness(120%) saturate(150%)';
                 wctx.drawImage(baseCanvas, 0, 0, redBoxW, redBoxH, 0, 0, workCanvas.width, workCanvas.height);
                 wctx.filter = 'none';
+                
+                // Apply binary thresholding to isolate ALL ranking text colors
+                // (gold, silver, bronze, white) from dark portrait backgrounds
+                const imageData = wctx.getImageData(0, 0, workCanvas.width, workCanvas.height);
+                const data = imageData.data;
+                const threshold = 100; // lower threshold to catch silver/bronze/white text
+                
+                for (let i = 0; i < data.length; i += 4) {
+                    const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                    // Any pixel brighter than threshold = text (make it black for OCR)
+                    // Any pixel darker = background (make it white)
+                    // This gives us black text on white background for Tesseract
+                    if (brightness > threshold) {
+                        data[i] = data[i + 1] = data[i + 2] = 0; // text -> black
+                    } else {
+                        data[i] = data[i + 1] = data[i + 2] = 255; // background -> white
+                    }
+                }
+                wctx.putImageData(imageData, 0, 0);
 
                 // Convert to blob
                 const blob = await new Promise((resolve, reject) => {
