@@ -72,9 +72,9 @@ async function processFocusedRankRegions(img) {
     const width = img.width;
     const height = img.height;
 
-    // Approx grid area (tuned from screenshots)
-    const gridTop = Math.floor(height * 0.48);   // start a bit below the middle
-    const gridBottom = Math.floor(height * 0.82); // end above bottom controls
+    // Approx grid area (tuned from screenshots) - slightly expanded
+    const gridTop = Math.floor(height * 0.46);   // start a bit above previous
+    const gridBottom = Math.floor(height * 0.86); // end a bit lower to catch bottom row
     const gridHeight = gridBottom - gridTop;
 
     const cols = 5;
@@ -101,19 +101,24 @@ async function processFocusedRankRegions(img) {
             const sh = regionH;
 
             // Crop from source
-            baseCanvas.width = sw;
+            // Use an inner window centered horizontally to avoid side noise
+            const xMargin = Math.floor(sw * 0.15); // keep center 70%
+            const innerX = sx + xMargin;
+            const innerW = sw - xMargin * 2;
+            baseCanvas.width = innerW;
             baseCanvas.height = sh;
             ctx.clearRect(0, 0, sw, sh);
-            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+            ctx.drawImage(img, innerX, sy, innerW, sh, 0, 0, innerW, sh);
 
             // Try multiple sub-bands and OCR modes per region to improve robustness
             const bandCandidates = [
+                { y: 0.62, h: 0.32 }, // lower band (often where label sits)
                 { y: 0.55, h: 0.35 }, // lower-middle
                 { y: 0.50, h: 0.35 }, // slightly higher
                 { y: 0.47, h: 0.30 }  // mid band
             ];
             const scales = [2, 3]; // try 2x first, then 3x
-            const psms = [8, 7];   // single word, then single line
+            const psms = [8, 7, 10];   // single word, then single line, then single char
 
             let found = false;
 
@@ -125,11 +130,14 @@ async function processFocusedRankRegions(img) {
                 for (const scale of scales) {
                     if (found) break;
                     // Upscale band
-                    workCanvas.width = sw * scale;
+                    workCanvas.width = innerW * scale;
                     workCanvas.height = bandH * scale;
                     wctx.imageSmoothingEnabled = true;
                     wctx.clearRect(0, 0, workCanvas.width, workCanvas.height);
-                    wctx.drawImage(baseCanvas, 0, bandY, sw, bandH, 0, 0, workCanvas.width, workCanvas.height);
+                    // mild enhancement
+                    wctx.filter = 'contrast(140%) brightness(110%)';
+                    wctx.drawImage(baseCanvas, 0, bandY, innerW, bandH, 0, 0, workCanvas.width, workCanvas.height);
+                    wctx.filter = 'none';
 
                     // Convert to blob
                     const blob = await new Promise((resolve, reject) => {
@@ -142,6 +150,7 @@ async function processFocusedRankRegions(img) {
                             const result = await Tesseract.recognize(blob, 'eng', {
                                 psm,
                                 tessedit_char_whitelist: '0123456789stndrdthSTNDRDTH[]()!|',
+                                preserve_interword_spaces: '1',
                                 logger: m => { /* quiet */ }
                             });
 
